@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>오늘 뭐먹지?</title>
+<meta name="theme-color" content="#f97316" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="뭐먹지" />
+<meta name="description" content="제주 현장 작업자를 위한 권역별 단골 식당·카페 기록 앱" />
+<link rel="manifest" id="manifestLink" />
+<link rel="apple-touch-icon" id="appleIcon" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" />
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { sans: ['Noto Sans KR', 'system-ui', '-apple-system', 'sans-serif'] } } }
+  };
+</script>
+<style>
+  html, body { -webkit-tap-highlight-color: transparent; }
+  body { background: #f1f5f9; color: #0f172a; font-family: 'Noto Sans KR', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; margin: 0; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+  .fab { bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)); right: calc(1.25rem + env(safe-area-inset-right, 0px)); }
+  .list-pad { padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)); }
+  .toast-pos { bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+  .sheet { max-height: calc(100dvh - 2.5rem - env(safe-area-inset-top, 0px)); }
+  .sheet-enter { animation: sheetUp .22s ease-out; }
+  @keyframes sheetUp { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sheet-enter { animation: none; } }
+  input, select, textarea { font-size: 16px !important; }
+  svg.lucide { flex-shrink: 0; }
+  button:focus-visible, a:focus-visible, label:focus-visible { outline: 3px solid #f97316; outline-offset: 2px; }
+  .viewer-top { padding-top: calc(.75rem + env(safe-area-inset-top, 0px)); }
+  .viewer-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+</style>
+</head>
+<body>
+<div class="bg-slate-100 text-slate-900 min-h-screen">
+
+<!-- ===== 헤더 ===== -->
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 safe-top">
+  <div class="max-w-2xl mx-auto px-4 pt-3 pb-2">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm shrink-0">
+          <i data-lucide="utensils-crossed" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-lg font-black leading-tight tracking-tight">오늘 뭐먹지?</h1>
+          <p class="text-[11px] text-slate-500 font-medium leading-tight truncate">제주 현장 단골 식당·카페 노트</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button id="btnInstall" class="relative h-10 px-3 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 font-bold text-sm flex items-center gap-1.5 active:bg-orange-100" aria-label="홈 화면에 추가">
+          <i data-lucide="download" class="w-4 h-4"></i><span>홈 화면 추가</span>
+          <span id="installDot" class="hidden absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 ring-2 ring-white"></span>
+        </button>
+        <button id="btnSettings" class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 hover:bg-slate-100 active:bg-slate-200" aria-label="설정 및 백업">
+          <i data-lucide="settings" class="w-6 h-6"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 검색 + 종류 -->
+    <div class="flex items-center gap-2 mt-3">
+      <div class="relative flex-1 min-w-0">
+        <i data-lucide="search" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+        <input id="searchInput" type="search" placeholder="상호·메뉴 검색" autocomplete="off"
+          class="w-full h-11 pl-10 pr-9 rounded-xl bg-slate-100 border-2 border-transparent focus:border-orange-500 focus:bg-white outline-none font-medium placeholder:text-slate-400" />
+        <button id="btnClearSearch" class="hidden absolute right-0.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-slate-400" aria-label="검색어 지우기">
+          <i data-lucide="x-circle" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="typeTabs" class="flex shrink-0 rounded-xl bg-slate-100 p-1 gap-0.5" role="tablist" aria-label="종류"></div>
+    </div>
+  </div>
+
+  <!-- 지역 칩 -->
+  <div id="regionChips" class="max-w-2xl mx-auto flex gap-2 overflow-x-auto no-scrollbar px-4 pb-2"></div>
+
+  <!-- 빠른 조건 + 정렬 -->
+  <div class="max-w-2xl mx-auto flex items-center gap-2 px-4 pb-3">
+    <div id="quickChips" class="flex gap-1.5 overflow-x-auto no-scrollbar flex-1"></div>
+    <select id="sortSelect" class="h-9 shrink-0 rounded-lg bg-white border border-slate-300 px-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500" aria-label="정렬">
+      <option value="recent">최근순</option>
+      <option value="rating">별점순</option>
+      <option value="name">이름순</option>
+    </select>
+  </div>
+</header>
+
+<!-- ===== 본문 ===== -->
+<main class="max-w-2xl mx-auto px-4 pt-3 list-pad">
+  <div id="backupBanner" class="hidden mb-3"></div>
+  <div id="resultInfo" class="text-sm font-semibold text-slate-600 mb-2"></div>
+  <div id="list" class="grid gap-3"></div>
+</main>
+
+<!-- ===== 등록 버튼 ===== -->
+<button id="btnAdd" class="fab fixed z-30 h-16 pl-5 pr-6 rounded-full bg-orange-500 hover:bg-orange-600 active:scale-95 transition text-white font-bold text-lg shadow-lg shadow-orange-500/40 flex items-center gap-2" aria-label="식당 또는 카페 등록">
+  <i data-lucide="plus" class="w-7 h-7"></i>
+  <span>등록</span>
+</button>
+
+<!-- ===== 확인 대화상자 ===== -->
+<div id="confirmBox" class="hidden fixed inset-0 z-[70] flex items-center justify-center px-6">
+  <div class="absolute inset-0 bg-slate-900/60"></div>
+  <div class="relative w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl">
+    <p id="confirmMsg" class="text-[17px] font-bold text-slate-900 leading-relaxed whitespace-pre-line break-keep"></p>
+    <div class="grid grid-cols-2 gap-2 mt-5">
+      <button id="confirmNo" type="button" class="h-12 rounded-xl bg-slate-100 text-slate-800 font-bold">취소</button>
+      <button id="confirmYes" type="button" class="h-12 rounded-xl bg-red-600 text-white font-bold">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 토스트 ===== -->
+<div id="toast" class="toast-pos fixed left-1/2 -translate-x-1/2 z-[80] hidden px-5 py-3 rounded-xl text-white font-semibold shadow-lg text-[15px] max-w-[90vw] text-center"></div>
+
+<!-- ===== 사진 보기 ===== -->
+<div id="photoViewer" class="hidden fixed inset-0 z-50 bg-black flex flex-col">
+  <div class="viewer-top flex items-center justify-between px-4 pb-2 text-white">
+    <p id="viewerTitle" class="font-bold truncate pr-3"></p>
+    <button type="button" data-close-sheet class="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center" aria-label="닫기">
+      <i data-lucide="x" class="w-6 h-6"></i>
+    </button>
+  </div>
+  <div id="viewerStage" class="relative flex-1 flex items-center justify-center overflow-hidden">
+    <img id="viewerImg" alt="" class="max-w-full max-h-full object-contain select-none" />
+    <button id="viewerPrev" type="button" class="absolute left-2 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 text-white flex items-center justify-center" aria-label="이전 사진">
+      <i data-lucide="chevron-left" class="w-7 h-7"></i>
+    </button>
+    <button id="viewerNext" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 text-white flex items-center justify-center" aria-label="다음 사진">
+      <i data-lucide="chevron-right" class="w-7 h-7"></i>
+    </button>
+  </div>
+  <p id="viewerCount" class="viewer-bottom pt-3 text-center text-white/80 font-bold"></p>
+</div>
+
+<!-- ===== 등록/수정 시트 ===== -->
+<div id="formSheet" class="hidden fixed inset-0 z-40">
+  <div class="absolute inset-0 bg-slate-900/50" data-close-sheet></div>
+  <div class="absolute bottom-0 inset-x-0 flex justify-center">
+    <form id="placeForm" novalidate class="sheet sheet-enter w-full max-w-2xl bg-white rounded-t-3xl flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-200">
+        <h2 id="formTitle" class="text-xl font-extrabold">등록</h2>
+        <button type="button" data-close-sheet class="w-11 h-11 -mr-2 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100" aria-label="닫기">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <div id="formScroll" class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div>
+          <p class="text-sm font-bold text-slate-700 mb-1.5">종류</p>
+          <div id="formType" class="grid grid-cols-2 gap-2"></div>
+        </div>
+
+        <div>
+          <label for="fName" class="block text-sm font-bold text-slate-700 mb-1.5"><span id="nameLabel">식당 이름</span> <span class="text-orange-600">*</span></label>
+          <input id="fName" type="text" maxlength="60" placeholder="예: 서귀포 OO식당" autocomplete="off"
+            class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none font-semibold" />
+          <p id="fNameErr" class="hidden text-sm text-red-600 font-semibold mt-1">이름을 입력해 주세요.</p>
+        </div>
+
+        <div>
+          <p class="text-sm font-bold text-slate-700 mb-1.5">사진 <span id="photoCount" class="font-medium text-slate-500"></span></p>
+          <div id="photoGrid" class="grid grid-cols-4 gap-2"></div>
+          <input id="photoCam" type="file" accept="image/*" capture="environment" class="sr-only" tabindex="-1" />
+          <input id="photoPick" type="file" accept="image/*" multiple class="sr-only" tabindex="-1" />
+        </div>
+
+        <div>
+          <label for="fRegion" class="block text-sm font-bold text-slate-700 mb-1.5">지역 구분</label>
+          <select id="fRegion" class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none font-semibold bg-white"></select>
+        </div>
+
+        <div>
+          <label for="fAddress" class="block text-sm font-bold text-slate-700 mb-1.5">세부 위치/주소</label>
+          <input id="fAddress" type="text" maxlength="120" placeholder="예: 서호남로 부근, 성산포항 입구" autocomplete="off"
+            class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none" />
+        </div>
+
+        <div>
+          <label for="fMenus" class="block text-sm font-bold text-slate-700 mb-1.5">추천 메뉴 및 가격 <span class="font-medium text-slate-500">(한 줄에 하나)</span></label>
+          <textarea id="fMenus" rows="3" maxlength="500" placeholder=""
+            class="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none resize-none leading-relaxed"></textarea>
+        </div>
+
+        <div>
+          <label for="fPhone" class="block text-sm font-bold text-slate-700 mb-1.5">전화번호</label>
+          <input id="fPhone" type="tel" inputmode="tel" maxlength="30" placeholder="064-000-0000" autocomplete="off"
+            class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none" />
+        </div>
+
+        <div>
+          <p class="text-sm font-bold text-slate-700 mb-2">현장 편의 태그 <span class="font-medium text-slate-500">(다시 누르면 해제)</span></p>
+          <div id="tagGroups" class="space-y-3"></div>
+        </div>
+
+        <div>
+          <p class="text-sm font-bold text-slate-700 mb-1.5">별점</p>
+          <div id="starInput" class="flex items-center gap-1"></div>
+        </div>
+
+        <div>
+          <label for="fMemo" class="block text-sm font-bold text-slate-700 mb-1.5">한줄 평/메모</label>
+          <textarea id="fMemo" rows="2" maxlength="300" placeholder=""
+            class="w-full px-3 py-2.5 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none resize-none leading-relaxed"></textarea>
+        </div>
+      </div>
+
+      <div class="px-5 pt-3 safe-bottom border-t border-slate-200 bg-white">
+        <button type="submit" class="w-full h-14 rounded-2xl bg-orange-500 hover:bg-orange-600 active:scale-[.98] transition text-white text-lg font-extrabold flex items-center justify-center gap-2">
+          <i data-lucide="check" class="w-6 h-6"></i>
+          <span id="submitLabel">저장하기</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== 홈 화면 추가 시트 ===== -->
+<div id="installSheet" class="hidden fixed inset-0 z-40">
+  <div class="absolute inset-0 bg-slate-900/50" data-close-sheet></div>
+  <div class="absolute bottom-0 inset-x-0 flex justify-center">
+    <div class="sheet sheet-enter w-full max-w-2xl bg-white rounded-t-3xl flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-200">
+        <h2 class="text-xl font-extrabold">홈 화면에 추가</h2>
+        <button type="button" data-close-sheet class="w-11 h-11 -mr-2 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100" aria-label="닫기">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4 safe-bottom">
+        <div id="installFrameNote" class="hidden rounded-2xl bg-amber-50 border-2 border-amber-300 p-4 text-sm font-semibold text-amber-900 leading-relaxed">
+          지금은 미리보기 화면이라 홈 화면에 추가할 수 없어요. GitHub Pages에 올린 주소를 휴대폰 브라우저로 열면 추가할 수 있어요.
+        </div>
+        <button id="btnInstallNow" class="hidden w-full h-14 rounded-xl bg-orange-500 text-white font-extrabold text-lg flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-6 h-6"></i> 지금 설치하기
+        </button>
+        <div class="rounded-2xl border border-slate-200 p-4">
+          <p class="font-extrabold flex items-center gap-2"><i data-lucide="smartphone" class="w-5 h-5 text-slate-500"></i>아이폰 (Safari)</p>
+          <ol class="mt-2 space-y-1.5 text-[15px] text-slate-700 font-medium list-decimal pl-5">
+            <li>Safari로 앱 주소를 엽니다.</li>
+            <li>아래쪽 <b>공유 버튼</b>(네모에 화살표)을 누릅니다.</li>
+            <li><b>홈 화면에 추가</b>를 누르고 <b>추가</b>를 누릅니다.</li>
+          </ol>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-4">
+          <p class="font-extrabold flex items-center gap-2"><i data-lucide="smartphone" class="w-5 h-5 text-slate-500"></i>안드로이드 (Chrome·삼성 인터넷)</p>
+          <ol class="mt-2 space-y-1.5 text-[15px] text-slate-700 font-medium list-decimal pl-5">
+            <li>Chrome으로 앱 주소를 엽니다.</li>
+            <li>오른쪽 위 <b>메뉴(⋮)</b>를 누릅니다.</li>
+            <li><b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 누릅니다.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 설정/백업 시트 ===== -->
+<div id="settingsSheet" class="hidden fixed inset-0 z-40">
+  <div class="absolute inset-0 bg-slate-900/50" data-close-sheet></div>
+  <div class="absolute bottom-0 inset-x-0 flex justify-center">
+    <div class="sheet sheet-enter w-full max-w-2xl bg-white rounded-t-3xl flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-200">
+        <h2 class="text-xl font-extrabold">설정 · 백업</h2>
+        <button type="button" data-close-sheet class="w-11 h-11 -mr-2 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100" aria-label="닫기">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5 safe-bottom">
+        <div class="rounded-2xl bg-orange-50 border border-orange-200 p-4">
+          <div class="flex items-center gap-2 text-orange-800 font-bold">
+            <i data-lucide="database" class="w-5 h-5"></i>
+            <span>저장된 곳 <span id="statCount">0</span>곳</span>
+          </div>
+          <p id="statBackup" class="text-sm text-orange-900/80 mt-1 font-medium"></p>
+          <p class="text-xs text-orange-900/70 mt-2 leading-relaxed">데이터와 사진은 이 기기 브라우저에만 저장됩니다. 기기 변경·캐시 삭제 전에 꼭 백업해 두세요. 백업 파일에는 사진도 함께 들어갑니다.</p>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-slate-700">백업</p>
+          <button id="btnExport" class="w-full h-14 rounded-xl bg-slate-900 text-white font-bold flex items-center justify-center gap-2 active:scale-[.98] transition">
+            <i data-lucide="download" class="w-5 h-5"></i> JSON 파일로 내보내기
+          </button>
+          <div id="exportPanel" class="hidden space-y-2">
+            <p class="text-xs text-slate-600 font-medium leading-relaxed">파일이 저장되지 않았다면 아래 내용을 복사해 메모장 등에 붙여넣어 보관하세요. 사진이 많으면 내용이 길어집니다.</p>
+            <textarea id="exportText" readonly rows="4" class="w-full px-3 py-2 rounded-xl border-2 border-slate-300 font-mono text-xs bg-slate-50"></textarea>
+            <button id="btnCopyExport" type="button" class="w-full h-12 rounded-xl bg-white border-2 border-slate-900 text-slate-900 font-bold flex items-center justify-center gap-2">
+              <i data-lucide="copy" class="w-5 h-5"></i> 백업 내용 복사
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-sm font-bold text-slate-700">복원</p>
+          <button id="btnImportMerge" class="w-full h-14 rounded-xl bg-white border-2 border-slate-300 text-slate-900 font-bold flex items-center justify-center gap-2 active:bg-slate-50">
+            <i data-lucide="upload" class="w-5 h-5"></i> 불러오기 (기존 데이터와 합치기)
+          </button>
+          <button id="btnImportReplace" class="w-full h-14 rounded-xl bg-white border-2 border-slate-300 text-slate-900 font-bold flex items-center justify-center gap-2 active:bg-slate-50">
+            <i data-lucide="refresh-ccw" class="w-5 h-5"></i> 불러오기 (전체 덮어쓰기)
+          </button>
+          <input id="importInput" type="file" accept="application/json,.json" class="sr-only" tabindex="-1" />
+          <details class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <summary class="text-sm font-bold text-slate-700 cursor-pointer py-1">복사해 둔 백업 내용 붙여넣기</summary>
+            <textarea id="importText" rows="4" placeholder="백업 내용을 여기에 붙여넣으세요" class="mt-2 w-full px-3 py-2 rounded-xl border-2 border-slate-300 font-mono text-xs bg-white"></textarea>
+            <button id="btnImportText" type="button" class="mt-2 mb-1 w-full h-12 rounded-xl bg-slate-900 text-white font-bold">붙여넣은 내용 불러오기 (합치기)</button>
+          </details>
+        </div>
+
+        <p id="swStatus" class="text-xs text-slate-500"></p>
+
+        <div class="pt-2">
+          <button id="btnWipe" class="w-full h-12 rounded-xl text-red-600 font-bold border-2 border-red-200 bg-red-50 flex items-center justify-center gap-2 active:bg-red-100">
+            <i data-lucide="trash-2" class="w-5 h-5"></i> 모든 데이터 삭제
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* =========================================================
+   상수
+   ========================================================= */
+const STORAGE_KEY = 'jeju-bapjip:v1';
+const META_KEY = 'jeju-bapjip:meta';
+const MAX_PHOTOS = 4;
+
+const REGIONS = ['서귀포 동지역', '제주시 동지역', '대정/안덕', '한림/애월', '한경', '조천/구좌', '성산/표선', '남원'];
+
+const TYPES = {
+  food: { label: '식당', icon: 'utensils', badge: 'bg-slate-900 text-white', name: '식당 이름', namePh: '예: 서귀포 OO식당',
+          menuPh: '두루치기 9,000원\n고기국수 8,500원', memoPh: '예: 브레이크 타임 없음, 공구 트럭 주차 편함' },
+  cafe: { label: '카페', icon: 'coffee', badge: 'bg-amber-800 text-white', name: '카페 이름', namePh: '예: 애월 OO카페',
+          menuPh: '아메리카노 4,500원\n당근케이크 6,500원', memoPh: '예: 7시 오픈, 콘센트 자리 많음, 드라이브스루' }
+};
+
+const TAG_GROUPS = [
+  { key: 'solo', label: '혼밥', type: 'single', for: ['food'], options: [
+    { v: 'solo_ok', t: '혼밥 가능', icon: 'user', tone: 'good' },
+    { v: 'solo_no', t: '2인 이상', icon: 'users', tone: 'warn' }
+  ]},
+  { key: 'parking', label: '주차', type: 'single', for: ['food', 'cafe'], options: [
+    { v: 'park_lot', t: '전용 주차장', icon: 'square-parking', tone: 'good' },
+    { v: 'park_street', t: '길가 주차 편함', icon: 'car', tone: 'good' },
+    { v: 'park_tight', t: '주차 협소', icon: 'triangle-alert', tone: 'warn' }
+  ]},
+  { key: 'breakfast', label: '아침', type: 'single', for: ['food'], options: [
+    { v: 'bf_ok', t: '조식 가능', icon: 'sunrise', tone: 'good' },
+    { v: 'bf_no', t: '일반', icon: 'clock', tone: 'plain' }
+  ]},
+  { key: 'worker', label: '현장 작업자', type: 'multi', for: ['food'], options: [
+    { v: 'big', t: '양 많음', icon: 'soup', tone: 'good' },
+    { v: 'fast', t: '회전율 빠름', icon: 'zap', tone: 'good' }
+  ]},
+  { key: 'cafe', label: '카페 특징', type: 'multi', for: ['cafe'], options: [
+    { v: 'early', t: '아침 일찍 오픈', icon: 'sunrise', tone: 'good' },
+    { v: 'takeout', t: '테이크아웃 빠름', icon: 'cup-soda', tone: 'good' },
+    { v: 'plug', t: '콘센트 있음', icon: 'plug', tone: 'good' },
+    { v: 'quiet', t: '조용함', icon: 'volume-x', tone: 'good' },
+    { v: 'dessert', t: '디저트 맛집', icon: 'cake-slice', tone: 'good' }
+  ]}
+];
+const TAG_INDEX = {};
+TAG_GROUPS.forEach(g => g.options.forEach(o => { TAG_INDEX[o.v] = { ...o, group: g.key }; }));
+
+const QUICK = {
+  park:    { label: '주차 편함', icon: 'car', for: ['food', 'cafe'], test: it => ['park_lot', 'park_street'].includes(it.tags.parking) },
+  solo:    { label: '혼밥', icon: 'user', for: ['food'], test: it => it.tags.solo === 'solo_ok' },
+  bf:      { label: '조식', icon: 'sunrise', for: ['food'], test: it => it.tags.breakfast === 'bf_ok' },
+  big:     { label: '양 많음', icon: 'soup', for: ['food'], test: it => it.tags.worker.includes('big') },
+  fast:    { label: '빠름', icon: 'zap', for: ['food'], test: it => it.tags.worker.includes('fast') },
+  early:   { label: '일찍 오픈', icon: 'sunrise', for: ['cafe'], test: it => it.tags.cafe.includes('early') },
+  takeout: { label: '테이크아웃', icon: 'cup-soda', for: ['cafe'], test: it => it.tags.cafe.includes('takeout') },
+  plug:    { label: '콘센트', icon: 'plug', for: ['cafe'], test: it => it.tags.cafe.includes('plug') }
+};
+
+/* =========================================================
+   유틸
+   ========================================================= */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const str = (v, max) => String(v ?? '').trim().slice(0, max);
+const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+const ymd = (d = new Date()) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+const refreshIcons = () => { if (window.lucide) lucide.createIcons(); };
+const daysSince = ts => Math.floor((Date.now() - ts) / 86400000);
+const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+
+/* =========================================================
+   사진 저장소 (IndexedDB, 실패 시 메모리)
+   ========================================================= */
+const PhotoDB = (() => {
+  let dbp = null;
+  const mem = new Map();
+  const cache = new Map();
+  function open() {
+    if (dbp) return dbp;
+    dbp = new Promise(resolve => {
+      try {
+        const r = indexedDB.open('mwomeokji-photos', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('photos');
+        r.onsuccess = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return dbp;
+  }
+  function tx(db, mode, fn) {
+    return new Promise(resolve => {
+      try {
+        const t = db.transaction('photos', mode);
+        const req = fn(t.objectStore('photos'));
+        t.oncomplete = () => resolve(req ? req.result : undefined);
+        t.onerror = () => resolve(undefined);
+        t.onabort = () => resolve(undefined);
+      } catch (e) { resolve(undefined); }
+    });
+  }
+  return {
+    async put(id, data) {
+      cache.set(id, data);
+      const db = await open();
+      if (!db) { mem.set(id, data); return; }
+      await tx(db, 'readwrite', s => s.put(data, id));
+    },
+    async get(id) {
+      if (cache.has(id)) return cache.get(id);
+      const db = await open();
+      if (!db) return mem.get(id) || null;
+      const v = await tx(db, 'readonly', s => s.get(id));
+      if (v) cache.set(id, v);
+      return v || null;
+    },
+    async del(id) {
+      cache.delete(id); mem.delete(id);
+      const db = await open();
+      if (db) await tx(db, 'readwrite', s => s.delete(id));
+    },
+    async clear() {
+      cache.clear(); mem.clear();
+      const db = await open();
+      if (db) await tx(db, 'readwrite', s => s.clear());
+    }
+  };
+})();
+
+function compressImage(file, max = 1280, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * sc));
+      c.height = Math.max(1, Math.round(img.naturalHeight * sc));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
+    img.src = url;
+  });
+}
+
+function hydratePhotos(root) {
+  root.querySelectorAll('img[data-photo-id]:not([src])').forEach(async img => {
+    const d = await PhotoDB.get(img.dataset.photoId);
+    if (d) img.src = d;
+    else img.closest('[data-photo-wrap]')?.classList.add('hidden');
+  });
+}
+
+/* =========================================================
+   데이터 저장소
+   ========================================================= */
+function normalize(o) {
+  if (!o || typeof o !== 'object' || !String(o.name || '').trim()) return null;
+  const t = o.tags || {};
+  const group = key => TAG_GROUPS.find(x => x.key === key);
+  const one = (key, v) => group(key).options.some(op => op.v === v) ? v : '';
+  const many = (key, arr) => Array.isArray(arr) ? [...new Set(arr.filter(v => group(key).options.some(op => op.v === v)))] : [];
+  const type = o.type === 'cafe' ? 'cafe' : 'food';
+  return {
+    id: String(o.id || uid()),
+    type,
+    name: str(o.name, 60),
+    region: REGIONS.includes(o.region) ? o.region : REGIONS[0],
+    address: str(o.address, 120),
+    menus: str(o.menus, 500),
+    phone: str(o.phone, 30),
+    memo: str(o.memo, 300),
+    rating: clamp(parseInt(o.rating, 10) || 0, 0, 5),
+    photos: Array.isArray(o.photos) ? o.photos.filter(x => typeof x === 'string').slice(0, MAX_PHOTOS) : [],
+    tags: {
+      solo: type === 'food' ? one('solo', t.solo) : '',
+      parking: one('parking', t.parking),
+      breakfast: type === 'food' ? one('breakfast', t.breakfast) : '',
+      worker: type === 'food' ? many('worker', t.worker) : [],
+      cafe: type === 'cafe' ? many('cafe', t.cafe) : []
+    },
+    createdAt: Number(o.createdAt) || Date.now(),
+    updatedAt: Number(o.updatedAt) || Date.now(),
+    sample: o.sample === true
+  };
+}
+
+function loadItems() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(raw) ? raw.map(normalize).filter(Boolean) : [];
+  } catch (e) { return []; }
+}
+function saveItems() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); return true; }
+  catch (e) { toast('저장 실패: 기기 저장공간을 확인해 주세요', 'error'); return false; }
+}
+function loadMeta() { try { return JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} }
+function requestPersist() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => { if (!p) navigator.storage.persist(); }).catch(() => {}); } catch (e) {}
+}
+
+/* =========================================================
+   상태 + 예시 데이터
+   ========================================================= */
+const FIRST_RUN = (() => { try { return localStorage.getItem(STORAGE_KEY) === null; } catch (e) { return true; } })();
+let items = loadItems();
+let meta = loadMeta();
+
+const SAMPLE_CAFE = { name: '(예시) 바다 앞 카페', type: 'cafe', region: '한림/애월', address: '예시 · 해안도로 쪽', menus: '아메리카노 4,500원\n당근케이크 6,500원',
+  phone: '', memo: '예시: 7시 오픈, 테이크아웃 빨라서 출근길에 좋음', rating: 4,
+  tags: { parking: 'park_lot', cafe: ['early', 'takeout', 'plug'] }, sample: true };
+
+if (FIRST_RUN && !items.length) {
+  const now = Date.now();
+  items = [
+    { name: '(예시) 동네 두루치기집', type: 'food', region: '서귀포 동지역', address: '예시 · 시청 뒷골목', menus: '돼지 두루치기 9,000원\n김치찌개 8,000원', phone: '', memo: '예시 카드입니다. 수정하거나 삭제해 보세요.', rating: 4,
+      tags: { solo: 'solo_ok', parking: 'park_street', breakfast: 'bf_no', worker: ['big', 'fast'] }, sample: true, createdAt: now, updatedAt: now },
+    { ...SAMPLE_CAFE, createdAt: now - 500, updatedAt: now - 500 },
+    { name: '(예시) 항구 앞 해장국', type: 'food', region: '성산/표선', address: '예시 · 항구 입구', menus: '해장국 10,000원\n몸국 9,000원', phone: '', memo: '예시: 아침 7시 오픈, 트럭 주차 가능', rating: 5,
+      tags: { solo: 'solo_ok', parking: 'park_lot', breakfast: 'bf_ok', worker: ['fast'] }, sample: true, createdAt: now - 1000, updatedAt: now - 1000 }
+  ].map(normalize);
+  meta.cafeSample = true; saveMeta();
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch (e) {}
+} else if (!meta.cafeSample && items.some(x => x.sample)) {
+  items.push(normalize({ ...SAMPLE_CAFE, createdAt: Date.now() - 500, updatedAt: Date.now() - 500 }));
+  meta.cafeSample = true; saveMeta(); saveItems();
+}
+
+const state = { type: 'all', region: '전체', q: '', quick: new Set(), sort: 'recent' };
+let editingId = null;
+let form = blankForm();
+let formSaved = false;
+let deferredInstall = null;
+
+function blankForm(type = 'food') {
+  return { type, tags: { solo: '', parking: '', breakfast: '', worker: [], cafe: [] }, rating: 0, photos: [], added: [], removed: [] };
+}
+
+/* =========================================================
+   렌더링: 헤더 필터
+   ========================================================= */
+function typeMatches(it) { return state.type === 'all' || it.type === state.type; }
+
+function renderTypeTabs() {
+  const tabs = [['all', '전체', 'layout-grid'], ['food', '식당', 'utensils'], ['cafe', '카페', 'coffee']];
+  $('#typeTabs').innerHTML = tabs.map(([k, label, icon]) => {
+    const on = state.type === k;
+    return `<button data-type="${k}" role="tab" aria-selected="${on}" class="h-9 px-2.5 rounded-lg text-sm font-bold flex items-center gap-1 transition ${
+      on ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600'
+    }"><i data-lucide="${icon}" class="w-4 h-4"></i>${label}</button>`;
+  }).join('');
+}
+
+function renderRegionChips() {
+  const counts = {};
+  let total = 0;
+  items.filter(typeMatches).forEach(it => { counts[it.region] = (counts[it.region] || 0) + 1; total++; });
+  $('#regionChips').innerHTML = ['전체', ...REGIONS].map(r => {
+    const active = state.region === r;
+    const n = r === '전체' ? total : (counts[r] || 0);
+    return `<button data-region="${esc(r)}" class="shrink-0 h-10 px-3.5 rounded-full text-[15px] font-bold border-2 transition flex items-center gap-1.5 ${
+      active ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'
+    }">${esc(r)}<span class="text-xs font-extrabold rounded-full px-1.5 min-w-[1.25rem] ${
+      active ? 'bg-white/25 text-white' : (n ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400')
+    }">${n}</span></button>`;
+  }).join('');
+}
+
+function visibleQuick() {
+  return Object.entries(QUICK).filter(([, q]) => state.type === 'all' || q.for.includes(state.type));
+}
+
+function renderQuickChips() {
+  $('#quickChips').innerHTML = visibleQuick().map(([k, q]) => {
+    const on = state.quick.has(k);
+    return `<button data-quick="${k}" aria-pressed="${on}" class="shrink-0 h-9 px-2.5 rounded-lg text-sm font-bold border flex items-center gap-1 transition ${
+      on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 active:bg-slate-100'
+    }"><i data-lucide="${q.icon}" class="w-4 h-4"></i>${q.label}</button>`;
+  }).join('');
+}
+
+/* =========================================================
+   렌더링: 목록
+   ========================================================= */
+function getFiltered() {
+  const words = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const list = items.filter(it => {
+    if (!typeMatches(it)) return false;
+    if (state.region !== '전체' && it.region !== state.region) return false;
+    if (words.length) {
+      const hay = `${it.name} ${it.menus} ${it.address} ${it.memo} ${it.region} ${TYPES[it.type].label}`.toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    for (const k of state.quick) if (!QUICK[k].test(it)) return false;
+    return true;
+  });
+  if (state.sort === 'rating') list.sort((a, b) => b.rating - a.rating || b.updatedAt - a.updatedAt);
+  else if (state.sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  else list.sort((a, b) => b.updatedAt - a.updatedAt);
+  return list;
+}
+
+function starsHtml(n) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += `<i data-lucide="star" class="w-4 h-4 ${i <= n ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}"></i>`;
+  return s;
+}
+
+function tagChip(v) {
+  const t = TAG_INDEX[v];
+  if (!t || v === 'bf_no') return '';
+  const cls = t.tone === 'good' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : t.tone === 'warn' ? 'bg-red-50 text-red-700 border-red-200'
+            : 'bg-slate-100 text-slate-700 border-slate-200';
+  return `<span class="inline-flex items-center gap-1 h-7 px-2 rounded-md border text-[13px] font-bold ${cls}"><i data-lucide="${t.icon}" class="w-3.5 h-3.5"></i>${esc(t.t)}</span>`;
+}
+
+function cardHtml(it) {
+  const T = TYPES[it.type];
+  const menus = it.menus.split('\n').map(m => m.trim()).filter(Boolean);
+  const shown = menus.slice(0, 3);
+  const more = menus.length - shown.length;
+  const tags = [it.tags.solo, it.tags.parking, it.tags.breakfast, ...it.tags.worker, ...it.tags.cafe].filter(Boolean).map(tagChip).join('');
+  const q = encodeURIComponent(`${it.name} 제주`);
+  const tel = it.phone.replace(/[^0-9+]/g, '');
+  const actionBtn = 'flex flex-col items-center justify-center gap-0.5 h-14 rounded-xl text-[12px] font-bold transition';
+
+  const photo = it.photos.length ? `
+    <button type="button" data-action="photos" data-id="${esc(it.id)}" data-photo-wrap class="relative block w-full aspect-[2/1] bg-slate-200 overflow-hidden" aria-label="사진 크게 보기">
+      <img data-photo-id="${esc(it.photos[0])}" alt="${esc(it.name)} 사진" class="w-full h-full object-cover" />
+      ${it.photos.length > 1 ? `<span class="absolute bottom-2 right-2 inline-flex items-center gap-1 h-7 px-2 rounded-md bg-black/65 text-white text-xs font-bold"><i data-lucide="images" class="w-3.5 h-3.5"></i>${it.photos.length}</span>` : ''}
+    </button>` : '';
+
+  return `
+  <article class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    ${photo}
+    <div class="p-4 pb-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-1 mb-1.5">
+            <span class="inline-flex items-center gap-1 text-[12px] font-extrabold rounded-md px-2 py-0.5 ${T.badge}"><i data-lucide="${T.icon}" class="w-3.5 h-3.5"></i>${T.label}</span>
+            <span class="inline-flex items-center gap-1 text-[12px] font-extrabold text-orange-700 bg-orange-100 rounded-md px-2 py-0.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${esc(it.region)}</span>
+            ${it.sample ? `<span class="inline-flex text-[12px] font-extrabold text-sky-700 bg-sky-100 rounded-md px-2 py-0.5">예시</span>` : ''}
+          </div>
+          <h3 class="text-[19px] font-extrabold leading-snug break-keep">${esc(it.name)}</h3>
+          ${it.address ? `<p class="text-sm text-slate-600 font-medium mt-0.5 flex items-start gap-1"><i data-lucide="navigation" class="w-3.5 h-3.5 mt-[3px] text-slate-400"></i><span>${esc(it.address)}</span></p>` : ''}
+          ${it.phone ? `<p class="text-sm text-slate-600 font-medium mt-0.5 flex items-center gap-1 select-all"><i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i><span>${esc(it.phone)}</span></p>` : ''}
+        </div>
+        ${it.rating ? `<div class="shrink-0 flex flex-col items-end"><div class="flex">${starsHtml(it.rating)}</div><span class="text-xs font-bold text-slate-500 mt-0.5">${it.rating}.0</span></div>` : ''}
+      </div>
+
+      ${shown.length ? `<ul class="mt-3 space-y-1">${shown.map(m => `
+        <li class="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
+          <span class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></span><span class="break-keep">${esc(m)}</span>
+        </li>`).join('')}${more > 0 ? `<li class="text-sm text-slate-500 font-semibold pl-3.5">외 ${more}개 메뉴</li>` : ''}</ul>` : ''}
+
+      ${tags ? `<div class="flex flex-wrap gap-1.5 mt-3">${tags}</div>` : ''}
+
+      ${it.memo ? `<p class="mt-3 text-[14px] text-slate-700 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-3 py-2 font-medium break-keep">${esc(it.memo)}</p>` : ''}
+    </div>
+
+    <div class="grid grid-cols-5 gap-1.5 px-3 pb-3">
+      <a href="https://map.naver.com/v5/search/${q}" target="_blank" rel="noopener" class="${actionBtn} bg-green-50 text-green-700 active:bg-green-100">
+        <i data-lucide="map" class="w-5 h-5"></i>네이버
+      </a>
+      <a href="https://map.kakao.com/link/search/${q}" target="_blank" rel="noopener" class="${actionBtn} bg-yellow-50 text-yellow-800 active:bg-yellow-100">
+        <i data-lucide="map-pinned" class="w-5 h-5"></i>카카오
+      </a>
+      ${tel
+        ? `<a href="tel:${esc(tel)}" class="${actionBtn} bg-sky-50 text-sky-700 active:bg-sky-100"><i data-lucide="phone" class="w-5 h-5"></i>전화</a>`
+        : `<span class="${actionBtn} bg-slate-50 text-slate-300"><i data-lucide="phone-off" class="w-5 h-5"></i>전화</span>`}
+      <button data-action="edit" data-id="${esc(it.id)}" class="${actionBtn} bg-slate-100 text-slate-700 active:bg-slate-200">
+        <i data-lucide="pencil" class="w-5 h-5"></i>수정
+      </button>
+      <button data-action="delete" data-id="${esc(it.id)}" class="${actionBtn} bg-red-50 text-red-600 active:bg-red-100">
+        <i data-lucide="trash-2" class="w-5 h-5"></i>삭제
+      </button>
+    </div>
+  </article>`;
+}
+
+function renderList() {
+  const list = getFiltered();
+  const pool = items.filter(typeMatches).length;
+  const filtering = state.region !== '전체' || state.q.trim() || state.quick.size;
+  const typeLabel = state.type === 'all' ? '' : ` ${TYPES[state.type].label}`;
+  const hasSamples = items.some(x => x.sample);
+
+  $('#resultInfo').innerHTML = (hasSamples
+    ? `<div class="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 text-sky-900 rounded-xl px-3 py-2 mb-2"><span class="text-sm font-semibold">예시 카드가 들어 있어요. 내 단골집을 등록해 보세요.</span><button data-action="clear-samples" class="shrink-0 h-9 px-3 rounded-lg bg-sky-600 text-white text-sm font-bold">예시 지우기</button></div>`
+    : '') + (items.length
+    ? `<span>${state.region === '전체' ? '전체 지역' : esc(state.region)}${typeLabel} · ${list.length}곳${filtering && list.length !== pool ? ` (전체 ${pool}곳)` : ''}</span>`
+    : '');
+
+  if (!items.length) {
+    $('#list').innerHTML = `
+      <div class="text-center py-14 px-6 bg-white rounded-2xl border-2 border-dashed border-slate-300">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mb-4">
+          <i data-lucide="chef-hat" class="w-9 h-9"></i>
+        </div>
+        <p class="text-lg font-extrabold">아직 저장한 곳이 없어요</p>
+        <p class="text-slate-600 mt-1 font-medium">현장에서 괜찮았던 식당·카페를<br />사진과 함께 30초 만에 기록해 보세요.</p>
+        <button data-action="add" class="mt-5 h-12 px-6 rounded-xl bg-orange-500 text-white font-bold inline-flex items-center gap-2">
+          <i data-lucide="plus" class="w-5 h-5"></i>첫 단골집 등록
+        </button>
+      </div>`;
+  } else if (!list.length) {
+    $('#list').innerHTML = `
+      <div class="text-center py-12 px-6 bg-white rounded-2xl border border-slate-200">
+        <i data-lucide="search-x" class="w-10 h-10 mx-auto text-slate-400"></i>
+        <p class="text-lg font-extrabold mt-3">조건에 맞는 곳이 없어요</p>
+        <p class="text-slate-600 mt-1 font-medium">다른 지역이나 검색어로 찾아보세요.</p>
+        <button data-action="reset" class="mt-4 h-11 px-5 rounded-xl bg-slate-900 text-white font-bold">필터 초기화</button>
+      </div>`;
+  } else {
+    $('#list').innerHTML = list.map(cardHtml).join('');
+    hydratePhotos($('#list'));
+  }
+}
+
+function renderBackupBanner() {
+  const el = $('#backupBanner');
+  const last = meta.lastBackup;
+  const real = items.filter(x => !x.sample).length;
+  const need = real >= 5 && (!last || daysSince(last) >= 14) && !(meta.bannerSnooze && Date.now() < meta.bannerSnooze);
+  if (!need) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="flex items-center gap-3 bg-amber-50 border-2 border-amber-300 rounded-2xl p-3">
+      <i data-lucide="shield-alert" class="w-6 h-6 text-amber-600"></i>
+      <p class="flex-1 text-sm font-semibold text-amber-900">${last ? `마지막 백업이 ${daysSince(last)}일 전이에요.` : '아직 백업한 적이 없어요.'} 데이터 보호를 위해 백업해 주세요.</p>
+      <button data-action="backup-now" class="shrink-0 h-10 px-3 rounded-lg bg-amber-500 text-white text-sm font-bold">백업</button>
+      <button data-action="snooze" class="shrink-0 w-8 h-10 flex items-center justify-center text-amber-700" aria-label="나중에"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>`;
+}
+
+function render() {
+  renderTypeTabs();
+  renderRegionChips();
+  renderQuickChips();
+  renderBackupBanner();
+  renderList();
+  refreshIcons();
+}
+
+/* =========================================================
+   시트(모달) + 뒤로가기
+   ========================================================= */
+const sheets = ['#formSheet', '#settingsSheet', '#installSheet', '#photoViewer'];
+function openSheet(sel) {
+  const el = $(sel);
+  el.classList.remove('hidden');
+  const inner = el.querySelector('.sheet');
+  if (inner) { inner.classList.remove('sheet-enter'); void inner.offsetWidth; inner.classList.add('sheet-enter'); }
+  document.body.style.overflow = 'hidden';
+  try { history.pushState({ sheet: sel }, ''); } catch (e) {}
+}
+function hideAllSheets() {
+  if (!$('#formSheet').classList.contains('hidden') && !formSaved) {
+    form.added.forEach(id => PhotoDB.del(id));
+    form.added = [];
+  }
+  sheets.forEach(s => $(s).classList.add('hidden'));
+  document.body.style.overflow = '';
+}
+function closeSheet() {
+  if (history.state && history.state.sheet) history.back();
+  else hideAllSheets();
+}
+window.addEventListener('popstate', hideAllSheets);
+document.querySelectorAll('[data-close-sheet]').forEach(b => b.addEventListener('click', closeSheet));
+
+/* =========================================================
+   등록/수정 폼
+   ========================================================= */
+$('#fRegion').innerHTML = REGIONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+
+function renderFormType() {
+  $('#formType').innerHTML = Object.entries(TYPES).map(([k, T]) => {
+    const on = form.type === k;
+    return `<button type="button" data-form-type="${k}" aria-pressed="${on}" class="h-12 rounded-xl border-2 font-extrabold text-[16px] flex items-center justify-center gap-2 transition ${
+      on ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'
+    }"><i data-lucide="${T.icon}" class="w-5 h-5"></i>${T.label}</button>`;
+  }).join('');
+  const T = TYPES[form.type];
+  $('#nameLabel').textContent = T.name;
+  $('#fName').placeholder = T.namePh;
+  $('#fMenus').placeholder = T.menuPh;
+  $('#fMemo').placeholder = T.memoPh;
+}
+
+function renderFormTags() {
+  $('#tagGroups').innerHTML = TAG_GROUPS.filter(g => g.for.includes(form.type)).map(g => `
+    <div>
+      <p class="text-[13px] font-bold text-slate-500 mb-1.5">${g.label}${g.type === 'multi' ? ' (복수 선택)' : ''}</p>
+      <div class="flex flex-wrap gap-2">
+        ${g.options.map(o => {
+          const on = g.type === 'multi' ? form.tags[g.key].includes(o.v) : form.tags[g.key] === o.v;
+          return `<button type="button" data-tag-group="${g.key}" data-tag="${o.v}" aria-pressed="${on}"
+            class="h-11 px-3.5 rounded-xl border-2 text-[15px] font-bold flex items-center gap-1.5 transition ${
+              on ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'
+            }"><i data-lucide="${on ? 'check' : o.icon}" class="w-4 h-4"></i>${o.t}</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function renderStarInput() {
+  let h = '';
+  for (let i = 1; i <= 5; i++) {
+    h += `<button type="button" data-star="${i}" class="w-12 h-12 flex items-center justify-center rounded-xl active:bg-amber-50" aria-label="${i}점">
+      <i data-lucide="star" class="w-9 h-9 ${i <= form.rating ? 'text-amber-500 fill-amber-400' : 'text-slate-300'}"></i></button>`;
+  }
+  h += `<span class="ml-2 text-base font-extrabold text-slate-700">${form.rating ? form.rating + '점' : '선택 안 함'}</span>`;
+  $('#starInput').innerHTML = h;
+}
+
+function renderFormPhotos() {
+  const box = $('#photoGrid');
+  const tile = 'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 text-[13px] font-bold cursor-pointer select-none';
+  const thumbs = form.photos.map((pid, i) => `
+    <div class="relative aspect-square rounded-xl overflow-hidden bg-slate-200">
+      <img data-photo-id="${esc(pid)}" alt="사진 ${i + 1}" class="w-full h-full object-cover" />
+      <button type="button" data-remove-photo="${esc(pid)}" class="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/65 text-white flex items-center justify-center" aria-label="사진 ${i + 1} 삭제">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>`).join('');
+  const add = form.photos.length < MAX_PHOTOS ? `
+    <label for="photoCam" tabindex="0" class="${tile} bg-orange-50 border-2 border-dashed border-orange-300 text-orange-700"><i data-lucide="camera" class="w-6 h-6"></i>촬영</label>
+    <label for="photoPick" tabindex="0" class="${tile} bg-slate-50 border-2 border-dashed border-slate-300 text-slate-700"><i data-lucide="image-plus" class="w-6 h-6"></i>앨범</label>` : '';
+  box.innerHTML = thumbs + add;
+  $('#photoCount').textContent = `(${form.photos.length}/${MAX_PHOTOS})`;
+  hydratePhotos(box);
+}
+
+function refreshFormDynamic() { renderFormType(); renderFormTags(); renderStarInput(); renderFormPhotos(); refreshIcons(); }
+
+$('#formType').addEventListener('click', e => {
+  const b = e.target.closest('[data-form-type]'); if (!b) return;
+  form.type = b.dataset.formType;
+  refreshFormDynamic();
+});
+
+$('#tagGroups').addEventListener('click', e => {
+  const b = e.target.closest('[data-tag]'); if (!b) return;
+  const g = TAG_GROUPS.find(x => x.key === b.dataset.tagGroup);
+  const v = b.dataset.tag;
+  if (g.type === 'multi') {
+    const arr = form.tags[g.key];
+    form.tags[g.key] = arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
+  } else {
+    form.tags[g.key] = form.tags[g.key] === v ? '' : v;
+  }
+  refreshFormDynamic();
+});
+
+$('#starInput').addEventListener('click', e => {
+  const b = e.target.closest('[data-star]'); if (!b) return;
+  const n = +b.dataset.star;
+  form.rating = form.rating === n ? 0 : n;
+  refreshFormDynamic();
+});
+
+$('#photoGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-remove-photo]'); if (!b) return;
+  const pid = b.dataset.removePhoto;
+  form.photos = form.photos.filter(x => x !== pid);
+  if (form.added.includes(pid)) { form.added = form.added.filter(x => x !== pid); PhotoDB.del(pid); }
+  else form.removed.push(pid);
+  renderFormPhotos(); refreshIcons();
+});
+$('#photoGrid').addEventListener('keydown', e => {
+  const l = e.target.closest('label[for]');
+  if (l && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); $('#' + l.htmlFor).click(); }
+});
+
+async function addPhotos(fileList) {
+  const files = [...(fileList || [])].filter(f => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name));
+  const room = MAX_PHOTOS - form.photos.length;
+  if (!files.length) return;
+  if (files.length > room) toast(`사진은 최대 ${MAX_PHOTOS}장까지 넣을 수 있어요`);
+  toast('사진 넣는 중…');
+  let failed = 0;
+  for (const f of files.slice(0, room)) {
+    try {
+      const data = await compressImage(f);
+      const id = uid();
+      await PhotoDB.put(id, data);
+      form.photos.push(id); form.added.push(id);
+    } catch (err) { failed++; }
+  }
+  renderFormPhotos(); refreshIcons();
+  if (failed) toast('일부 사진을 열지 못했어요. JPG나 PNG로 다시 시도해 주세요', 'error');
+  else $('#toast').classList.add('hidden');
+}
+['#photoCam', '#photoPick'].forEach(sel => $(sel).addEventListener('change', e => {
+  const files = e.target.files;
+  addPhotos(files).finally(() => { e.target.value = ''; });
+}));
+
+function openForm(id = null) {
+  editingId = id;
+  formSaved = false;
+  const it = id ? items.find(x => x.id === id) : null;
+  const defType = state.type === 'cafe' ? 'cafe' : 'food';
+  form = it
+    ? { type: it.type, tags: JSON.parse(JSON.stringify(it.tags)), rating: it.rating, photos: [...it.photos], added: [], removed: [] }
+    : blankForm(defType);
+  $('#formTitle').textContent = it ? '수정하기' : '새로 등록';
+  $('#submitLabel').textContent = it ? '수정 완료' : '저장하기';
+  $('#fName').value = it ? it.name : '';
+  $('#fRegion').value = it ? it.region : (state.region !== '전체' ? state.region : (meta.lastRegion && REGIONS.includes(meta.lastRegion) ? meta.lastRegion : REGIONS[0]));
+  $('#fAddress').value = it ? it.address : '';
+  $('#fMenus').value = it ? it.menus : '';
+  $('#fPhone').value = it ? it.phone : '';
+  $('#fMemo').value = it ? it.memo : '';
+  $('#fNameErr').classList.add('hidden');
+  $('#fName').classList.remove('border-red-500');
+  refreshFormDynamic();
+  openSheet('#formSheet');
+  $('#formScroll').scrollTop = 0;
+}
+
+$('#placeForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('#fName').value.trim();
+  if (!name) {
+    $('#fNameErr').classList.remove('hidden');
+    $('#fName').classList.add('border-red-500');
+    $('#fName').focus();
+    return;
+  }
+  const now = Date.now();
+  const prev = editingId ? items.find(x => x.id === editingId) : null;
+  const data = normalize({
+    id: editingId || uid(),
+    type: form.type,
+    name,
+    region: $('#fRegion').value,
+    address: $('#fAddress').value,
+    menus: $('#fMenus').value.split('\n').map(s => s.trim()).filter(Boolean).join('\n'),
+    phone: $('#fPhone').value,
+    memo: $('#fMemo').value,
+    rating: form.rating,
+    tags: form.tags,
+    photos: form.photos,
+    createdAt: prev ? prev.createdAt : now,
+    updatedAt: now,
+    sample: false
+  });
+  if (prev) items = items.map(x => x.id === editingId ? data : x);
+  else items.unshift(data);
+  if (!saveItems()) return;
+  form.removed.forEach(pid => PhotoDB.del(pid));
+  formSaved = true;
+  meta.lastRegion = data.region; saveMeta();
+  requestPersist();
+  closeSheet();
+  render();
+  toast(prev ? '수정했습니다' : `${data.name} 저장 완료`);
+});
+
+$('#fName').addEventListener('input', () => {
+  $('#fNameErr').classList.add('hidden');
+  $('#fName').classList.remove('border-red-500');
+});
+
+/* =========================================================
+   사진 보기
+   ========================================================= */
+const viewer = { ids: [], idx: 0 };
+async function showViewerPhoto() {
+  const img = $('#viewerImg');
+  img.removeAttribute('src');
+  const d = await PhotoDB.get(viewer.ids[viewer.idx]);
+  if (d) img.src = d;
+  $('#viewerCount').textContent = `${viewer.idx + 1} / ${viewer.ids.length}`;
+  const multi = viewer.ids.length > 1;
+  $('#viewerPrev').classList.toggle('hidden', !multi);
+  $('#viewerNext').classList.toggle('hidden', !multi);
+}
+function openViewer(id) {
+  const it = items.find(x => x.id === id);
+  if (!it || !it.photos.length) return;
+  viewer.ids = it.photos; viewer.idx = 0;
+  $('#viewerTitle').textContent = it.name;
+  openSheet('#photoViewer');
+  showViewerPhoto();
+}
+function stepViewer(d) {
+  if (viewer.ids.length < 2) return;
+  viewer.idx = (viewer.idx + d + viewer.ids.length) % viewer.ids.length;
+  showViewerPhoto();
+}
+$('#viewerPrev').addEventListener('click', () => stepViewer(-1));
+$('#viewerNext').addEventListener('click', () => stepViewer(1));
+let touchX = null;
+$('#viewerStage').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+$('#viewerStage').addEventListener('touchend', e => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 50) stepViewer(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+document.addEventListener('keydown', e => {
+  if ($('#photoViewer').classList.contains('hidden')) return;
+  if (e.key === 'ArrowLeft') stepViewer(-1);
+  else if (e.key === 'ArrowRight') stepViewer(1);
+  else if (e.key === 'Escape') closeSheet();
+});
+
+/* =========================================================
+   목록/헤더 이벤트
+   ========================================================= */
+$('#typeTabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-type]'); if (!b) return;
+  state.type = b.dataset.type;
+  for (const k of [...state.quick]) if (!(state.type === 'all' || QUICK[k].for.includes(state.type))) state.quick.delete(k);
+  render();
+});
+
+$('#regionChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-region]'); if (!b) return;
+  state.region = b.dataset.region;
+  render();
+  const chip = $('#regionChips').querySelector(`[data-region="${CSS.escape(state.region)}"]`);
+  if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+$('#quickChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-quick]'); if (!b) return;
+  const k = b.dataset.quick;
+  state.quick.has(k) ? state.quick.delete(k) : state.quick.add(k);
+  render();
+});
+
+$('#sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderList(); refreshIcons(); });
+
+let searchTimer;
+$('#searchInput').addEventListener('input', e => {
+  $('#btnClearSearch').classList.toggle('hidden', !e.target.value);
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.q = e.target.value; renderList(); refreshIcons(); }, 120);
+});
+$('#btnClearSearch').addEventListener('click', () => {
+  $('#searchInput').value = ''; state.q = '';
+  $('#btnClearSearch').classList.add('hidden');
+  renderList(); refreshIcons();
+});
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-action]'); if (!b) return;
+  const { action, id } = b.dataset;
+  if (action === 'edit') openForm(id);
+  else if (action === 'add') openForm();
+  else if (action === 'photos') openViewer(id);
+  else if (action === 'delete') {
+    const it = items.find(x => x.id === id); if (!it) return;
+    askConfirm(`'${it.name}'을(를) 삭제할까요?${it.photos.length ? '\n사진도 함께 삭제됩니다.' : ''}`, '삭제').then(ok => {
+      if (!ok) return;
+      it.photos.forEach(pid => PhotoDB.del(pid));
+      items = items.filter(x => x.id !== id);
+      saveItems(); render(); toast('삭제했습니다');
+    });
+  } else if (action === 'reset') {
+    state.region = '전체'; state.q = ''; state.quick.clear(); state.type = 'all';
+    $('#searchInput').value = ''; $('#btnClearSearch').classList.add('hidden');
+    render();
+  } else if (action === 'backup-now') { renderSettingsStats(); openSheet('#settingsSheet'); exportData(); }
+  else if (action === 'snooze') { meta.bannerSnooze = Date.now() + 3 * 86400000; saveMeta(); renderBackupBanner(); }
+  else if (action === 'clear-samples') {
+    items.filter(x => x.sample).forEach(x => x.photos.forEach(pid => PhotoDB.del(pid)));
+    items = items.filter(x => !x.sample); saveItems(); render(); toast('예시 카드를 지웠습니다');
+  }
+});
+
+$('#btnAdd').addEventListener('click', () => openForm());
+
+/* =========================================================
+   홈 화면 추가
+   ========================================================= */
+function updateInstallButton() {
+  $('#btnInstall').classList.toggle('hidden', isStandalone());
+  $('#installDot').classList.toggle('hidden', !deferredInstall);
+  $('#btnInstallNow').classList.toggle('hidden', !deferredInstall);
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; updateInstallButton(); });
+window.addEventListener('appinstalled', () => { deferredInstall = null; updateInstallButton(); toast('홈 화면에 추가했습니다'); });
+
+async function runInstall() {
+  if (!deferredInstall) return false;
+  deferredInstall.prompt();
+  try { await deferredInstall.userChoice; } catch (e) {}
+  deferredInstall = null;
+  updateInstallButton();
+  return true;
+}
+$('#btnInstall').addEventListener('click', async () => {
+  if (await runInstall()) return;
+  $('#installFrameNote').classList.toggle('hidden', !inFrame);
+  openSheet('#installSheet');
+});
+$('#btnInstallNow').addEventListener('click', async () => { if (await runInstall()) closeSheet(); });
+
+/* =========================================================
+   설정 · 백업 · 복원
+   ========================================================= */
+function renderSettingsStats() {
+  $('#statCount').textContent = items.length;
+  $('#statBackup').textContent = meta.lastBackup
+    ? `마지막 백업: ${new Date(meta.lastBackup).toLocaleDateString('ko-KR')} (${daysSince(meta.lastBackup)}일 전)`
+    : '아직 백업한 기록이 없습니다.';
+}
+$('#btnSettings').addEventListener('click', () => { renderSettingsStats(); openSheet('#settingsSheet'); });
+
+function markBackup() {
+  meta.lastBackup = Date.now(); saveMeta();
+  renderSettingsStats(); renderBackupBanner(); refreshIcons();
+}
+
+async function exportData() {
+  if (!items.length) { toast('백업할 데이터가 없습니다', 'error'); return; }
+  toast('백업 준비 중…');
+  const full = [];
+  for (const it of items) {
+    const photoData = [];
+    for (const pid of it.photos) { const d = await PhotoDB.get(pid); if (d) photoData.push(d); }
+    const { photos, ...rest } = it;
+    full.push({ ...rest, photoData });
+  }
+  const payload = { app: 'oneul-mwomeokji', version: 2, exportedAt: new Date().toISOString(), count: items.length, items: full };
+  const json = JSON.stringify(payload);
+  $('#exportText').value = json;
+  $('#exportPanel').classList.remove('hidden');
+
+  const fname = `mwomeokji-backup-${ymd()}.json`;
+  const file = new File([json], fname, { type: 'application/json' });
+  const isMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+  if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: '오늘 뭐먹지? 백업' });
+      markBackup(); toast('백업 파일을 공유했습니다');
+      return;
+    } catch (err) { if (err && err.name === 'AbortError') { $('#toast').classList.add('hidden'); return; } }
+  }
+  try {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  } catch (e) {}
+  markBackup();
+  toast(`${items.length}곳 백업 완료`);
+}
+
+$('#btnExport').addEventListener('click', exportData);
+$('#btnCopyExport').addEventListener('click', () => {
+  const ta = $('#exportText');
+  const fallback = () => { ta.focus(); ta.select(); toast('선택된 내용을 길게 눌러 복사하세요'); };
+  try { navigator.clipboard.writeText(ta.value).then(() => { markBackup(); toast('백업 내용을 복사했습니다'); }).catch(fallback); }
+  catch (e) { fallback(); }
+});
+
+let importMode = 'merge';
+$('#btnImportMerge').addEventListener('click', () => { importMode = 'merge'; $('#importInput').click(); });
+$('#btnImportReplace').addEventListener('click', () => { importMode = 'replace'; $('#importInput').click(); });
+
+$('#importInput').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => applyImport(reader.result, importMode);
+  reader.onerror = () => toast('파일을 읽지 못했습니다', 'error');
+  reader.readAsText(file);
+});
+
+$('#btnImportText').addEventListener('click', () => {
+  const t = $('#importText').value.trim();
+  if (!t) { toast('붙여넣은 내용이 없습니다', 'error'); return; }
+  applyImport(t, 'merge').then(() => { $('#importText').value = ''; });
+});
+
+async function materialize(raw) {
+  const ids = [];
+  if (Array.isArray(raw.photoData)) {
+    for (const d of raw.photoData.slice(0, MAX_PHOTOS)) {
+      if (typeof d === 'string' && d.startsWith('data:image/')) { const id = uid(); await PhotoDB.put(id, d); ids.push(id); }
+    }
+  }
+  const { photoData, ...rest } = raw;
+  return normalize({ ...rest, photos: ids });
+}
+
+async function applyImport(text, mode) {
+  let arr;
+  try {
+    const d = JSON.parse(text);
+    arr = Array.isArray(d) ? d : d && d.items;
+    if (!Array.isArray(arr)) throw new Error('format');
+  } catch (err) { toast('올바른 백업 내용이 아닙니다', 'error'); return; }
+  const valid = arr.filter(o => o && typeof o === 'object' && String(o.name || '').trim());
+  if (!valid.length) { toast('불러올 데이터가 없습니다', 'error'); return; }
+
+  if (mode === 'replace') {
+    if (!await askConfirm(`현재 ${items.length}곳을 모두 지우고\n백업의 ${valid.length}곳으로 교체할까요?`, '교체')) return;
+    toast('불러오는 중…');
+    await PhotoDB.clear();
+    const out = [];
+    for (const r of valid) out.push(await materialize(r));
+    items = out;
+    saveItems(); render(); renderSettingsStats();
+    toast(`${out.length}곳으로 복원했습니다`);
+  } else {
+    toast('불러오는 중…');
+    const map = new Map(items.map(x => [x.id, x]));
+    let added = 0, updated = 0;
+    for (const r of valid) {
+      const cur = r.id ? map.get(String(r.id)) : null;
+      if (cur && (Number(r.updatedAt) || 0) <= cur.updatedAt) continue;
+      if (cur) { cur.photos.forEach(pid => PhotoDB.del(pid)); updated++; } else added++;
+      const it = await materialize(r);
+      map.set(it.id, it);
+    }
+    items = [...map.values()];
+    saveItems(); render(); renderSettingsStats();
+    toast(`추가 ${added}곳 · 갱신 ${updated}곳`);
+  }
+  requestPersist();
+}
+
+$('#btnWipe').addEventListener('click', async () => {
+  if (!items.length) { toast('삭제할 데이터가 없습니다'); return; }
+  if (!await askConfirm(`저장된 ${items.length}곳과 사진을 모두 삭제할까요?\n백업하지 않았다면 복구할 수 없습니다.`, '삭제')) return;
+  if (!await askConfirm('정말 삭제하시겠습니까?\n마지막 확인입니다.', '모두 삭제')) return;
+  await PhotoDB.clear();
+  items = []; saveItems(); render(); renderSettingsStats();
+  toast('모든 데이터를 삭제했습니다');
+});
+
+/* =========================================================
+   확인 대화상자 · 토스트
+   ========================================================= */
+function askConfirm(msg, okLabel = '확인') {
+  return new Promise(resolve => {
+    const box = $('#confirmBox');
+    $('#confirmMsg').textContent = msg;
+    $('#confirmYes').textContent = okLabel;
+    box.classList.remove('hidden');
+    const done = v => { box.classList.add('hidden'); $('#confirmYes').onclick = $('#confirmNo').onclick = null; resolve(v); };
+    $('#confirmYes').onclick = () => done(true);
+    $('#confirmNo').onclick = () => done(false);
+  });
+}
+
+let toastTimer;
+function toast(msg, type = 'ok') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = `toast-pos fixed left-1/2 -translate-x-1/2 z-[80] px-5 py-3 rounded-xl text-white font-semibold shadow-lg text-[15px] max-w-[90vw] text-center ${type === 'error' ? 'bg-red-600' : 'bg-slate-900'}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2400);
+}
+
+/* =========================================================
+   PWA: 아이콘 · 매니페스트 · 서비스 워커
+   ========================================================= */
+function drawIcon(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const x = c.getContext('2d');
+  const s = size / 512;
+  const g = x.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, '#fbbf24'); g.addColorStop(1, '#f97316');
+  x.fillStyle = g; x.fillRect(0, 0, size, size);
+  x.fillStyle = '#fff7ed';
+  x.beginPath(); x.arc(256 * s, 262 * s, 112 * s, Math.PI, 0); x.fill();
+  x.save(); x.translate(300 * s, 150 * s); x.rotate(-0.6);
+  x.fillStyle = '#16a34a'; x.beginPath(); x.ellipse(0, 0, 44 * s, 20 * s, 0, 0, Math.PI * 2); x.fill();
+  x.restore();
+  x.fillStyle = '#ffffff';
+  x.beginPath(); x.moveTo(106 * s, 258 * s); x.lineTo(406 * s, 258 * s);
+  x.arc(256 * s, 258 * s, 150 * s, 0, Math.PI, false); x.closePath(); x.fill();
+  x.fillRect(196 * s, 392 * s, 120 * s, 22 * s);
+  x.fillStyle = '#fdba74'; x.fillRect(150 * s, 300 * s, 212 * s, 14 * s);
+  return c.toDataURL('image/png');
+}
+
+function setupManifest() {
+  try {
+    const base = location.href.split('#')[0].split('?')[0];
+    const scope = base.substring(0, base.lastIndexOf('/') + 1);
+    const i192 = drawIcon(192), i512 = drawIcon(512);
+    $('#appleIcon').href = drawIcon(180);
+    const manifest = {
+      name: '오늘 뭐먹지?', short_name: '뭐먹지',
+      description: '제주 현장 작업자를 위한 권역별 단골 식당·카페 기록',
+      start_url: base, scope, display: 'standalone', orientation: 'portrait',
+      background_color: '#f1f5f9', theme_color: '#f97316', lang: 'ko',
+      icons: [
+        { src: i192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: i512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: i512, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    $('#manifestLink').href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+  } catch (e) {}
+}
+
+function setupServiceWorker() {
+  const status = $('#swStatus');
+  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (inFrame || !('serviceWorker' in navigator) || !secure) {
+    status.textContent = '오프라인 모드: GitHub Pages(HTTPS)에 올리면 활성화됩니다.';
+    return;
+  }
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => { status.textContent = '오프라인 모드: 활성화됨 ✓'; })
+    .catch(() => { status.textContent = '오프라인 모드: sw.js 파일을 index.html과 같은 폴더에 두면 활성화됩니다.'; });
+}
+
+/* =========================================================
+   시작
+   ========================================================= */
+window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { items = loadItems(); render(); } });
+
+setupManifest();
+updateInstallButton();
+render();
+setupServiceWorker();
+</script>
+</body>
+</html>
