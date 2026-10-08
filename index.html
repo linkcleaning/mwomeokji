@@ -93,7 +93,10 @@
   </div>
 
   <!-- 지역 칩 -->
-  <div id="regionChips" class="max-w-2xl mx-auto flex flex-wrap gap-1.5 px-4 pb-3"></div>
+  <div class="max-w-2xl mx-auto px-4 pb-3">
+    <div id="cityChips" class="grid grid-cols-3 gap-1.5"></div>
+    <div id="areaPanel" class="hidden mt-2 rounded-2xl border-2 border-orange-200 bg-orange-50/60 p-3 max-h-[46vh] overflow-y-auto"></div>
+  </div>
 </header>
 
 <!-- ===== 본문 ===== -->
@@ -177,7 +180,7 @@
         </div>
 
         <div>
-          <label for="fRegion" class="block text-sm font-bold text-slate-700 mb-1.5">지역 구분</label>
+          <label for="fRegion" class="block text-sm font-bold text-slate-700 mb-1.5">지역 (읍·면·동)</label>
           <select id="fRegion" class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none font-semibold bg-white"></select>
         </div>
 
@@ -338,7 +341,27 @@ const STORAGE_KEY = 'jeju-bapjip:v1';
 const META_KEY = 'jeju-bapjip:meta';
 const MAX_PHOTOS = 4;
 
-const REGIONS = ['서귀포 동지역', '제주시 동지역', '대정/안덕', '한림/애월', '한경', '조천/구좌', '성산/표선', '남원'];
+const CITIES = {
+  jeju: { label: '제주시',
+    eupmyeon: ['한림읍', '애월읍', '구좌읍', '조천읍', '한경면', '추자면', '우도면'],
+    dong: ['일도1동', '일도2동', '이도1동', '이도2동', '삼도1동', '삼도2동', '용담1동', '용담2동', '건입동', '화북동',
+           '삼양동', '봉개동', '아라동', '오라동', '연동', '노형동', '외도동', '이호동', '도두동'] },
+  seogwipo: { label: '서귀포시',
+    eupmyeon: ['대정읍', '남원읍', '성산읍', '안덕면', '표선면'],
+    dong: ['송산동', '정방동', '중앙동', '천지동', '효돈동', '영천동', '동홍동', '서홍동', '대륜동', '대천동', '중문동', '예래동'] }
+};
+const areasOf = c => [...CITIES[c].eupmyeon, ...CITIES[c].dong];
+const locLabel = it => CITIES[it.city].label + (it.area ? ' ' + it.area : '');
+// 이전 버전 권역 → 새 구분
+const LEGACY_REGION = {
+  '서귀포 동지역': ['seogwipo', ''], '제주시 동지역': ['jeju', ''], '대정/안덕': ['seogwipo', ''], '한림/애월': ['jeju', ''],
+  '한경': ['jeju', '한경면'], '조천/구좌': ['jeju', ''], '성산/표선': ['seogwipo', ''], '남원': ['seogwipo', '남원읍']
+};
+function parseLoc(v) {
+  const [c, a = ''] = String(v || '').split('|');
+  const city = CITIES[c] ? c : 'jeju';
+  return { city, area: areasOf(city).includes(a) ? a : '' };
+}
 
 const TYPES = {
   food: { label: '식당', icon: 'utensils', badge: 'bg-slate-900 text-white', name: '식당 이름', namePh: '예: 서귀포 OO식당',
@@ -491,7 +514,13 @@ function normalize(o) {
     id: String(o.id || uid()),
     type,
     name: str(o.name, 60),
-    region: REGIONS.includes(o.region) ? o.region : REGIONS[0],
+    ...(() => {
+      let city = CITIES[o.city] ? o.city : null, area = String(o.area || '');
+      if (!city && LEGACY_REGION[o.region]) [city, area] = LEGACY_REGION[o.region];
+      if (!city) city = 'jeju';
+      if (area && !areasOf(city).includes(area)) area = '';
+      return { city, area };
+    })(),
     address: str(o.address, 120),
     menus: str(o.menus, 500),
     phone: str(o.phone, 30),
@@ -534,17 +563,17 @@ const FIRST_RUN = (() => { try { return localStorage.getItem(STORAGE_KEY) === nu
 let items = loadItems();
 let meta = loadMeta();
 
-const SAMPLE_CAFE = { name: '(예시) 바다 앞 카페', type: 'cafe', region: '한림/애월', address: '예시 · 해안도로 쪽', menus: '아메리카노 4,500원\n당근케이크 6,500원',
+const SAMPLE_CAFE = { name: '(예시) 바다 앞 카페', type: 'cafe', city: 'jeju', area: '애월읍', address: '예시 · 해안도로 쪽', menus: '아메리카노 4,500원\n당근케이크 6,500원',
   phone: '', memo: '예시: 7시 오픈, 테이크아웃 빨라서 출근길에 좋음', rating: 4,
   tags: { parking: 'park_lot', cafe: ['early', 'takeout', 'plug'] }, sample: true };
 
 if (FIRST_RUN && !items.length) {
   const now = Date.now();
   items = [
-    { name: '(예시) 동네 두루치기집', type: 'food', region: '서귀포 동지역', address: '예시 · 시청 뒷골목', menus: '돼지 두루치기 9,000원\n김치찌개 8,000원', phone: '', memo: '예시 카드입니다. 수정하거나 삭제해 보세요.', rating: 4,
+    { name: '(예시) 동네 두루치기집', type: 'food', city: 'seogwipo', area: '동홍동', address: '예시 · 시청 뒷골목', menus: '돼지 두루치기 9,000원\n김치찌개 8,000원', phone: '', memo: '예시 카드입니다. 수정하거나 삭제해 보세요.', rating: 4,
       tags: { solo: 'solo_ok', parking: 'park_street', breakfast: 'bf_no', worker: ['big', 'fast'] }, sample: true, createdAt: now, updatedAt: now },
     { ...SAMPLE_CAFE, createdAt: now - 500, updatedAt: now - 500 },
-    { name: '(예시) 항구 앞 해장국', type: 'food', region: '성산/표선', address: '예시 · 항구 입구', menus: '해장국 10,000원\n몸국 9,000원', phone: '', memo: '예시: 아침 7시 오픈, 트럭 주차 가능', rating: 5,
+    { name: '(예시) 항구 앞 해장국', type: 'food', city: 'seogwipo', area: '성산읍', address: '예시 · 항구 입구', menus: '해장국 10,000원\n몸국 9,000원', phone: '', memo: '예시: 아침 7시 오픈, 트럭 주차 가능', rating: 5,
       tags: { solo: 'solo_ok', parking: 'park_lot', breakfast: 'bf_ok', worker: ['fast'] }, sample: true, createdAt: now - 1000, updatedAt: now - 1000 }
   ].map(normalize);
   meta.cafeSample = true; saveMeta();
@@ -554,7 +583,7 @@ if (FIRST_RUN && !items.length) {
   meta.cafeSample = true; saveMeta(); saveItems();
 }
 
-const state = { type: 'all', region: '전체', q: '', sort: 'recent' };
+const state = { type: 'all', city: 'all', area: '', panel: false, q: '', sort: 'recent' };
 let editingId = null;
 let form = blankForm();
 let formSaved = false;
@@ -580,18 +609,38 @@ function renderTypeTabs() {
 }
 
 function renderRegionChips() {
-  const counts = {};
-  let total = 0;
-  items.filter(typeMatches).forEach(it => { counts[it.region] = (counts[it.region] || 0) + 1; total++; });
-  $('#regionChips').innerHTML = ['전체', ...REGIONS].map(r => {
-    const active = state.region === r;
-    const n = r === '전체' ? total : (counts[r] || 0);
-    return `<button data-region="${esc(r)}" class="h-10 px-3 rounded-full text-[15px] font-bold border-2 transition flex items-center gap-1.5 ${
-      active ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'
-    }">${esc(r)}<span class="text-xs font-extrabold rounded-full px-1.5 min-w-[1.25rem] ${
-      active ? 'bg-white/25 text-white' : (n ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400')
-    }">${n}</span></button>`;
-  }).join('');
+  const pool = items.filter(typeMatches);
+  const cityCount = { jeju: 0, seogwipo: 0 }, areaCount = {};
+  pool.forEach(it => { cityCount[it.city]++; if (it.area) areaCount[it.area] = (areaCount[it.area] || 0) + 1; });
+  const badge = (n, on) => `<span class="text-xs font-extrabold rounded-full px-1.5 min-w-[1.25rem] ${
+    on ? 'bg-white/25 text-white' : (n ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400')}">${n}</span>`;
+  const btn = on => `h-11 rounded-xl text-[15px] font-bold border-2 transition flex items-center justify-center gap-1 px-1 min-w-0 ${
+    on ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'}`;
+
+  const allOn = state.city === 'all';
+  let html = `<button data-city="all" class="${btn(allOn)}">전체${badge(pool.length, allOn)}</button>`;
+  for (const [k, c] of Object.entries(CITIES)) {
+    const on = state.city === k;
+    const label = on && state.area ? state.area : c.label;
+    html += `<button data-city="${k}" aria-expanded="${on && state.panel}" class="${btn(on)}">
+      <span class="truncate">${esc(label)}</span>${on && state.area ? '' : badge(cityCount[k], on)}
+      <i data-lucide="${on && state.panel ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4"></i></button>`;
+  }
+  $('#cityChips').innerHTML = html;
+
+  const panel = $('#areaPanel');
+  if (state.city === 'all' || !state.panel) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
+  const c = CITIES[state.city];
+  const chip = (name, n, on) => `<button data-area="${esc(name)}" class="h-9 px-2.5 rounded-full text-[14px] font-bold border transition flex items-center gap-1 ${
+    on ? 'bg-orange-500 border-orange-500 text-white' : n ? 'bg-white border-orange-300 text-slate-900' : 'bg-white/70 border-slate-200 text-slate-400'
+  }">${esc(name)}${n ? `<span class="text-[11px] font-extrabold ${on ? 'text-white' : 'text-orange-600'}">${n}</span>` : ''}</button>`;
+  const group = (title, list) => `<p class="text-[12px] font-extrabold text-slate-500 mt-3 mb-1.5">${title}</p>
+    <div class="flex flex-wrap gap-1.5">${list.map(a => chip(a, areaCount[a] || 0, state.area === a)).join('')}</div>`;
+  panel.innerHTML = `
+    <div class="flex flex-wrap gap-1.5">${chip(c.label + ' 전체', cityCount[state.city], !state.area).replace('data-area="' + esc(c.label + ' 전체') + '"', 'data-area=""')}</div>
+    ${group('읍 · 면', c.eupmyeon)}
+    ${group('동', c.dong)}`;
+  panel.classList.remove('hidden');
 }
 
 /* =========================================================
@@ -601,9 +650,10 @@ function getFiltered() {
   const words = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const list = items.filter(it => {
     if (!typeMatches(it)) return false;
-    if (state.region !== '전체' && it.region !== state.region) return false;
+    if (state.city !== 'all' && it.city !== state.city) return false;
+    if (state.area && it.area !== state.area) return false;
     if (words.length) {
-      const hay = `${it.name} ${it.menus} ${it.address} ${it.memo} ${it.region} ${TYPES[it.type].label}`.toLowerCase();
+      const hay = `${it.name} ${it.menus} ${it.address} ${it.memo} ${locLabel(it)} ${TYPES[it.type].label}`.toLowerCase();
       if (!words.every(w => hay.includes(w))) return false;
     }
     return true;
@@ -657,7 +707,7 @@ function cardHtml(it) {
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-1 mb-1.5">
             <span class="inline-flex items-center gap-1 text-[12px] font-extrabold rounded-md px-2 py-0.5 ${T.badge}"><i data-lucide="${T.icon}" class="w-3.5 h-3.5"></i>${T.label}</span>
-            <span class="inline-flex items-center gap-1 text-[12px] font-extrabold text-orange-700 bg-orange-100 rounded-md px-2 py-0.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${esc(it.region)}</span>
+            <span class="inline-flex items-center gap-1 text-[12px] font-extrabold text-orange-700 bg-orange-100 rounded-md px-2 py-0.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${esc(locLabel(it))}</span>
             ${it.sample ? `<span class="inline-flex text-[12px] font-extrabold text-sky-700 bg-sky-100 rounded-md px-2 py-0.5">예시</span>` : ''}
           </div>
           <h3 class="text-[19px] font-extrabold leading-snug break-keep flex items-center gap-1">${esc(it.name)}<i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i></h3>
@@ -700,11 +750,11 @@ function cardHtml(it) {
 function renderList() {
   const list = getFiltered();
   const pool = items.filter(typeMatches).length;
-  const filtering = state.region !== '전체' || state.q.trim();
+  const filtering = state.city !== 'all' || state.q.trim();
   const typeLabel = state.type === 'all' ? '' : ` ${TYPES[state.type].label}`;
 
   $('#resultInfo').innerHTML = (items.length
-    ? `<span>${state.region === '전체' ? '전체 지역' : esc(state.region)}${typeLabel} · ${list.length}곳${filtering && list.length !== pool ? ` (전체 ${pool}곳)` : ''}</span>`
+    ? `<span>${state.city === 'all' ? '전체 지역' : esc(state.area || CITIES[state.city].label)}${typeLabel} · ${list.length}곳${filtering && list.length !== pool ? ` (전체 ${pool}곳)` : ''}</span>`
     : '');
 
   if (!items.length) {
@@ -787,7 +837,10 @@ document.querySelectorAll('[data-close-sheet]').forEach(b => b.addEventListener(
 /* =========================================================
    등록/수정 폼
    ========================================================= */
-$('#fRegion').innerHTML = REGIONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+$('#fRegion').innerHTML = Object.entries(CITIES).map(([k, c]) => `
+  <option value="${k}|">${c.label} (읍·면·동 모름)</option>
+  <optgroup label="${c.label} · 읍·면">${c.eupmyeon.map(a => `<option value="${k}|${a}">${c.label} ${a}</option>`).join('')}</optgroup>
+  <optgroup label="${c.label} · 동">${c.dong.map(a => `<option value="${k}|${a}">${c.label} ${a}</option>`).join('')}</optgroup>`).join('');
 
 function renderFormType() {
   $('#formType').innerHTML = Object.entries(TYPES).map(([k, T]) => {
@@ -923,7 +976,10 @@ function openForm(id = null) {
   $('#formTitle').textContent = it ? '수정하기' : '새로 등록';
   $('#submitLabel').textContent = it ? '수정 완료' : '저장하기';
   $('#fName').value = it ? it.name : '';
-  $('#fRegion').value = it ? it.region : (state.region !== '전체' ? state.region : (meta.lastRegion && REGIONS.includes(meta.lastRegion) ? meta.lastRegion : REGIONS[0]));
+  const lastLoc = meta.lastLoc ? parseLoc(meta.lastLoc) : { city: 'jeju', area: '' };
+  $('#fRegion').value = it ? `${it.city}|${it.area}`
+    : state.city !== 'all' ? `${state.city}|${state.area}`
+    : `${lastLoc.city}|${lastLoc.area}`;
   $('#fAddress').value = it ? it.address : '';
   $('#fMenus').value = it ? it.menus : '';
   $('#fPhone').value = it ? it.phone : '';
@@ -950,7 +1006,7 @@ $('#placeForm').addEventListener('submit', e => {
     id: editingId || uid(),
     type: form.type,
     name,
-    region: $('#fRegion').value,
+    ...parseLoc($('#fRegion').value),
     address: $('#fAddress').value,
     menus: $('#fMenus').value.split('\n').map(s => s.trim()).filter(Boolean).join('\n'),
     phone: $('#fPhone').value,
@@ -967,7 +1023,7 @@ $('#placeForm').addEventListener('submit', e => {
   if (!saveItems()) return;
   form.removed.forEach(pid => PhotoDB.del(pid));
   formSaved = true;
-  meta.lastRegion = data.region; saveMeta();
+  meta.lastLoc = `${data.city}|${data.area}`; saveMeta();
   requestPersist();
   closeSheet();
   render();
@@ -1032,9 +1088,19 @@ $('#typeTabs').addEventListener('click', e => {
   render();
 });
 
-$('#regionChips').addEventListener('click', e => {
-  const b = e.target.closest('[data-region]'); if (!b) return;
-  state.region = b.dataset.region;
+$('#cityChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-city]'); if (!b) return;
+  const c = b.dataset.city;
+  if (c === 'all') { state.city = 'all'; state.area = ''; state.panel = false; }
+  else if (state.city !== c) { state.city = c; state.area = ''; state.panel = true; }
+  else state.panel = !state.panel;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+$('#areaPanel').addEventListener('click', e => {
+  const b = e.target.closest('[data-area]'); if (!b) return;
+  state.area = b.dataset.area;
+  state.panel = false;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
@@ -1068,7 +1134,7 @@ document.addEventListener('click', e => {
       saveItems(); render(); toast('삭제했습니다');
     });
   } else if (action === 'reset') {
-    state.region = '전체'; state.q = ''; state.type = 'all';
+    state.city = 'all'; state.area = ''; state.panel = false; state.q = ''; state.type = 'all';
     $('#searchInput').value = ''; $('#btnClearSearch').classList.add('hidden');
     render();
   } else if (action === 'backup-now') { renderSettingsStats(); openSheet('#settingsSheet'); exportData(); }
