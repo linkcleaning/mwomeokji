@@ -69,32 +69,31 @@
       </div>
     </div>
 
-    <!-- 검색 + 종류 -->
-    <div class="flex items-center gap-2 mt-3">
-      <div class="relative flex-1 min-w-0">
+    <!-- 검색 -->
+    <div class="mt-3">
+      <div class="relative">
         <i data-lucide="search" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-        <input id="searchInput" type="search" placeholder="상호·메뉴 검색" autocomplete="off"
+        <input id="searchInput" type="search" placeholder="상호, 메뉴, 위치, 메모 검색" autocomplete="off"
           class="w-full h-11 pl-10 pr-9 rounded-xl bg-slate-100 border-2 border-transparent focus:border-orange-500 focus:bg-white outline-none font-medium placeholder:text-slate-400" />
         <button id="btnClearSearch" class="hidden absolute right-0.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-slate-400" aria-label="검색어 지우기">
           <i data-lucide="x-circle" class="w-5 h-5"></i>
         </button>
       </div>
-      <div id="typeTabs" class="flex shrink-0 rounded-xl bg-slate-100 p-1 gap-0.5" role="tablist" aria-label="종류"></div>
+    </div>
+
+    <!-- 종류 + 정렬 -->
+    <div class="flex items-center gap-2 mt-2">
+      <div id="typeTabs" class="flex-1 grid grid-cols-3 rounded-xl bg-slate-100 p-1 gap-1" role="tablist" aria-label="종류"></div>
+      <select id="sortSelect" class="h-11 shrink-0 rounded-xl bg-white border border-slate-300 px-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500" aria-label="정렬">
+        <option value="recent">최근순</option>
+        <option value="rating">별점순</option>
+        <option value="name">이름순</option>
+      </select>
     </div>
   </div>
 
   <!-- 지역 칩 -->
-  <div id="regionChips" class="max-w-2xl mx-auto flex gap-2 overflow-x-auto no-scrollbar px-4 pb-2"></div>
-
-  <!-- 빠른 조건 + 정렬 -->
-  <div class="max-w-2xl mx-auto flex items-center gap-2 px-4 pb-3">
-    <div id="quickChips" class="flex gap-1.5 overflow-x-auto no-scrollbar flex-1"></div>
-    <select id="sortSelect" class="h-9 shrink-0 rounded-lg bg-white border border-slate-300 px-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-500" aria-label="정렬">
-      <option value="recent">최근순</option>
-      <option value="rating">별점순</option>
-      <option value="name">이름순</option>
-    </select>
-  </div>
+  <div id="regionChips" class="max-w-2xl mx-auto flex flex-wrap gap-1.5 px-4 pb-3"></div>
 </header>
 
 <!-- ===== 본문 ===== -->
@@ -377,16 +376,7 @@ const TAG_GROUPS = [
 const TAG_INDEX = {};
 TAG_GROUPS.forEach(g => g.options.forEach(o => { TAG_INDEX[o.v] = { ...o, group: g.key }; }));
 
-const QUICK = {
-  park:    { label: '주차 편함', icon: 'car', for: ['food', 'cafe'], test: it => ['park_lot', 'park_street'].includes(it.tags.parking) },
-  solo:    { label: '혼밥', icon: 'user', for: ['food'], test: it => it.tags.solo === 'solo_ok' },
-  bf:      { label: '조식', icon: 'sunrise', for: ['food'], test: it => it.tags.breakfast === 'bf_ok' },
-  big:     { label: '양 많음', icon: 'soup', for: ['food'], test: it => it.tags.worker.includes('big') },
-  fast:    { label: '빠름', icon: 'zap', for: ['food'], test: it => it.tags.worker.includes('fast') },
-  early:   { label: '일찍 오픈', icon: 'sunrise', for: ['cafe'], test: it => it.tags.cafe.includes('early') },
-  takeout: { label: '테이크아웃', icon: 'cup-soda', for: ['cafe'], test: it => it.tags.cafe.includes('takeout') },
-  plug:    { label: '콘센트', icon: 'plug', for: ['cafe'], test: it => it.tags.cafe.includes('plug') }
-};
+
 
 /* =========================================================
    유틸
@@ -564,7 +554,7 @@ if (FIRST_RUN && !items.length) {
   meta.cafeSample = true; saveMeta(); saveItems();
 }
 
-const state = { type: 'all', region: '전체', q: '', quick: new Set(), sort: 'recent' };
+const state = { type: 'all', region: '전체', q: '', sort: 'recent' };
 let editingId = null;
 let form = blankForm();
 let formSaved = false;
@@ -583,7 +573,7 @@ function renderTypeTabs() {
   const tabs = [['all', '전체', 'layout-grid'], ['food', '식당', 'utensils'], ['cafe', '카페', 'coffee']];
   $('#typeTabs').innerHTML = tabs.map(([k, label, icon]) => {
     const on = state.type === k;
-    return `<button data-type="${k}" role="tab" aria-selected="${on}" class="h-9 px-2.5 rounded-lg text-sm font-bold flex items-center gap-1 transition ${
+    return `<button data-type="${k}" role="tab" aria-selected="${on}" class="h-9 rounded-lg text-[15px] font-bold flex items-center justify-center gap-1.5 transition ${
       on ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600'
     }"><i data-lucide="${icon}" class="w-4 h-4"></i>${label}</button>`;
   }).join('');
@@ -596,24 +586,11 @@ function renderRegionChips() {
   $('#regionChips').innerHTML = ['전체', ...REGIONS].map(r => {
     const active = state.region === r;
     const n = r === '전체' ? total : (counts[r] || 0);
-    return `<button data-region="${esc(r)}" class="shrink-0 h-10 px-3.5 rounded-full text-[15px] font-bold border-2 transition flex items-center gap-1.5 ${
+    return `<button data-region="${esc(r)}" class="h-10 px-3 rounded-full text-[15px] font-bold border-2 transition flex items-center gap-1.5 ${
       active ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'
     }">${esc(r)}<span class="text-xs font-extrabold rounded-full px-1.5 min-w-[1.25rem] ${
       active ? 'bg-white/25 text-white' : (n ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400')
     }">${n}</span></button>`;
-  }).join('');
-}
-
-function visibleQuick() {
-  return Object.entries(QUICK).filter(([, q]) => state.type === 'all' || q.for.includes(state.type));
-}
-
-function renderQuickChips() {
-  $('#quickChips').innerHTML = visibleQuick().map(([k, q]) => {
-    const on = state.quick.has(k);
-    return `<button data-quick="${k}" aria-pressed="${on}" class="shrink-0 h-9 px-2.5 rounded-lg text-sm font-bold border flex items-center gap-1 transition ${
-      on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 active:bg-slate-100'
-    }"><i data-lucide="${q.icon}" class="w-4 h-4"></i>${q.label}</button>`;
   }).join('');
 }
 
@@ -629,7 +606,6 @@ function getFiltered() {
       const hay = `${it.name} ${it.menus} ${it.address} ${it.memo} ${it.region} ${TYPES[it.type].label}`.toLowerCase();
       if (!words.every(w => hay.includes(w))) return false;
     }
-    for (const k of state.quick) if (!QUICK[k].test(it)) return false;
     return true;
   });
   if (state.sort === 'rating') list.sort((a, b) => b.rating - a.rating || b.updatedAt - a.updatedAt);
@@ -672,7 +648,11 @@ function cardHtml(it) {
   return `
   <article class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
     ${photo}
-    <div class="p-4 pb-3">
+    ${it.sample ? `<div class="flex items-center justify-between gap-2 bg-sky-50 border-b border-sky-200 px-4 py-2">
+      <span class="text-[13px] font-semibold text-sky-900">예시 카드예요. 눌러서 수정해 보세요.</span>
+      <button data-action="clear-samples" class="shrink-0 h-9 px-3 rounded-lg bg-sky-600 text-white text-sm font-bold flex items-center gap-1"><i data-lucide="eraser" class="w-4 h-4"></i>예시 지우기</button>
+    </div>` : ''}
+    <div data-action="edit" data-id="${esc(it.id)}" role="button" tabindex="0" aria-label="${esc(it.name)} 열기" class="p-4 pb-3 cursor-pointer active:bg-slate-50 transition-colors">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-1 mb-1.5">
@@ -680,9 +660,9 @@ function cardHtml(it) {
             <span class="inline-flex items-center gap-1 text-[12px] font-extrabold text-orange-700 bg-orange-100 rounded-md px-2 py-0.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${esc(it.region)}</span>
             ${it.sample ? `<span class="inline-flex text-[12px] font-extrabold text-sky-700 bg-sky-100 rounded-md px-2 py-0.5">예시</span>` : ''}
           </div>
-          <h3 class="text-[19px] font-extrabold leading-snug break-keep">${esc(it.name)}</h3>
+          <h3 class="text-[19px] font-extrabold leading-snug break-keep flex items-center gap-1">${esc(it.name)}<i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i></h3>
           ${it.address ? `<p class="text-sm text-slate-600 font-medium mt-0.5 flex items-start gap-1"><i data-lucide="navigation" class="w-3.5 h-3.5 mt-[3px] text-slate-400"></i><span>${esc(it.address)}</span></p>` : ''}
-          ${it.phone ? `<p class="text-sm text-slate-600 font-medium mt-0.5 flex items-center gap-1 select-all"><i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i><span>${esc(it.phone)}</span></p>` : ''}
+          ${it.phone ? `<p class="text-sm text-slate-600 font-medium mt-0.5 flex items-center gap-1"><i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i><span>${esc(it.phone)}</span></p>` : ''}
         </div>
         ${it.rating ? `<div class="shrink-0 flex flex-col items-end"><div class="flex">${starsHtml(it.rating)}</div><span class="text-xs font-bold text-slate-500 mt-0.5">${it.rating}.0</span></div>` : ''}
       </div>
@@ -720,13 +700,10 @@ function cardHtml(it) {
 function renderList() {
   const list = getFiltered();
   const pool = items.filter(typeMatches).length;
-  const filtering = state.region !== '전체' || state.q.trim() || state.quick.size;
+  const filtering = state.region !== '전체' || state.q.trim();
   const typeLabel = state.type === 'all' ? '' : ` ${TYPES[state.type].label}`;
-  const hasSamples = items.some(x => x.sample);
 
-  $('#resultInfo').innerHTML = (hasSamples
-    ? `<div class="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 text-sky-900 rounded-xl px-3 py-2 mb-2"><span class="text-sm font-semibold">예시 카드가 들어 있어요. 내 단골집을 등록해 보세요.</span><button data-action="clear-samples" class="shrink-0 h-9 px-3 rounded-lg bg-sky-600 text-white text-sm font-bold">예시 지우기</button></div>`
-    : '') + (items.length
+  $('#resultInfo').innerHTML = (items.length
     ? `<span>${state.region === '전체' ? '전체 지역' : esc(state.region)}${typeLabel} · ${list.length}곳${filtering && list.length !== pool ? ` (전체 ${pool}곳)` : ''}</span>`
     : '');
 
@@ -775,7 +752,6 @@ function renderBackupBanner() {
 function render() {
   renderTypeTabs();
   renderRegionChips();
-  renderQuickChips();
   renderBackupBanner();
   renderList();
   refreshIcons();
@@ -1053,7 +1029,6 @@ document.addEventListener('keydown', e => {
 $('#typeTabs').addEventListener('click', e => {
   const b = e.target.closest('[data-type]'); if (!b) return;
   state.type = b.dataset.type;
-  for (const k of [...state.quick]) if (!(state.type === 'all' || QUICK[k].for.includes(state.type))) state.quick.delete(k);
   render();
 });
 
@@ -1061,16 +1036,7 @@ $('#regionChips').addEventListener('click', e => {
   const b = e.target.closest('[data-region]'); if (!b) return;
   state.region = b.dataset.region;
   render();
-  const chip = $('#regionChips').querySelector(`[data-region="${CSS.escape(state.region)}"]`);
-  if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   window.scrollTo({ top: 0, behavior: 'smooth' });
-});
-
-$('#quickChips').addEventListener('click', e => {
-  const b = e.target.closest('[data-quick]'); if (!b) return;
-  const k = b.dataset.quick;
-  state.quick.has(k) ? state.quick.delete(k) : state.quick.add(k);
-  render();
 });
 
 $('#sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderList(); refreshIcons(); });
@@ -1102,7 +1068,7 @@ document.addEventListener('click', e => {
       saveItems(); render(); toast('삭제했습니다');
     });
   } else if (action === 'reset') {
-    state.region = '전체'; state.q = ''; state.quick.clear(); state.type = 'all';
+    state.region = '전체'; state.q = ''; state.type = 'all';
     $('#searchInput').value = ''; $('#btnClearSearch').classList.add('hidden');
     render();
   } else if (action === 'backup-now') { renderSettingsStats(); openSheet('#settingsSheet'); exportData(); }
@@ -1114,6 +1080,10 @@ document.addEventListener('click', e => {
 });
 
 $('#btnAdd').addEventListener('click', () => openForm());
+$('#list').addEventListener('keydown', e => {
+  const c = e.target.closest('[role="button"][data-action="edit"]');
+  if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openForm(c.dataset.id); }
+});
 
 /* =========================================================
    홈 화면 추가
