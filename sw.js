@@ -1,5 +1,5 @@
 /* 오늘 뭐먹지? - 서비스 워커 (index.html과 같은 폴더에 두세요) */
-const CACHE = 'mwomeokji-v7';
+const CACHE = 'mwomeokji-v8';
 const APP_SHELL = ['./', './index.html'];
 
 self.addEventListener('install', event => {
