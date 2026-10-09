@@ -46,6 +46,28 @@
   button:focus-visible, a:focus-visible, label:focus-visible { outline: 3px solid #f97316; outline-offset: 2px; }
   .viewer-top { padding-top: calc(.75rem + env(safe-area-inset-top, 0px)); }
   .viewer-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+  /* ===== 밥그릇 마스코트 ===== */
+  .mascot { position: fixed; z-index: 30; top: 50%; width: 72px; height: 72px; margin-top: -36px; padding: 0; border: 0; background: none;
+    right: max(calc(.5rem + env(safe-area-inset-right, 0px)), calc((100vw - 28rem) / 2 + .5rem));
+    filter: drop-shadow(0 5px 8px rgba(15, 23, 42, .22)); -webkit-tap-highlight-color: transparent; cursor: pointer; }
+  .mascot svg { width: 100%; height: 100%; overflow: visible; display: block; }
+  .mascot .bob { transform-origin: 60px 112px; animation: mBob 3.2s ease-in-out infinite; }
+  .mascot .steam path { opacity: 0; animation: mSteam 2.8s ease-out infinite; }
+  .mascot .steam path:nth-child(2) { animation-delay: .9s; }
+  .mascot .steam path:nth-child(3) { animation-delay: 1.8s; }
+  .mascot .eyes-happy, .mascot .mouth-open { display: none; }
+  .mascot.playing .eyes-open, .mascot.playing .mouth-smile { display: none; }
+  .mascot.playing .eyes-happy, .mascot.playing .mouth-open { display: inline; }
+  .mascot.playing .bob { animation: mBoing .55s cubic-bezier(.3, 1.6, .5, 1) 3; }
+  .mascot.playing .steam path { animation-duration: 1s; }
+  .mascot-bubble { position: absolute; right: calc(100% + 6px); top: 6px; white-space: nowrap; padding: 6px 10px; border-radius: 14px 14px 4px 14px;
+    background: #fff; color: #c2410c; font-weight: 900; font-size: 14px; box-shadow: 0 4px 12px rgba(15, 23, 42, .15);
+    opacity: 0; transform: translateX(6px) scale(.9); transition: opacity .18s, transform .18s; pointer-events: none; }
+  .mascot.playing .mascot-bubble { opacity: 1; transform: none; }
+  @keyframes mBob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-2deg); } }
+  @keyframes mBoing { 0% { transform: scale(1, 1); } 30% { transform: scale(1.12, .86); } 60% { transform: scale(.92, 1.1) translateY(-6px); } 100% { transform: scale(1, 1); } }
+  @keyframes mSteam { 0% { opacity: 0; transform: translateY(6px); } 30% { opacity: .85; } 100% { opacity: 0; transform: translateY(-14px); } }
+  @media (prefers-reduced-motion: reduce) { .mascot .bob, .mascot .steam path, .mascot.playing .bob { animation: none; } .mascot .steam path { opacity: .6; } }
 </style>
 </head>
 <body>
@@ -118,6 +140,56 @@
   <i data-lucide="plus" class="w-7 h-7"></i>
   <span>등록</span>
 </button>
+
+<!-- ===== 밥그릇 마스코트 ===== -->
+<button id="mascot" type="button" class="mascot" aria-label="밥그릇 마스코트, 누르면 소리가 나요">
+  <span class="mascot-bubble" aria-hidden="true">오늘 뭐먹지?</span>
+  <svg viewBox="0 0 120 120" aria-hidden="true">
+    <g class="steam" fill="none" stroke="#fdba74" stroke-width="4" stroke-linecap="round">
+      <path d="M42 30 c-6 -6 6 -10 0 -18" />
+      <path d="M60 26 c-6 -6 6 -10 0 -18" />
+      <path d="M78 30 c-6 -6 6 -10 0 -18" />
+    </g>
+    <g class="bob">
+      <!-- 밥 -->
+      <path d="M18 62 C18 34 102 34 102 62 Z" fill="#fffaf0" stroke="#e7e0d2" stroke-width="2" />
+      <g fill="#efe6d6">
+        <ellipse cx="40" cy="50" rx="3.2" ry="1.8" transform="rotate(-20 40 50)" />
+        <ellipse cx="56" cy="44" rx="3.2" ry="1.8" transform="rotate(15 56 44)" />
+        <ellipse cx="72" cy="47" rx="3.2" ry="1.8" transform="rotate(-10 72 47)" />
+        <ellipse cx="86" cy="54" rx="3.2" ry="1.8" transform="rotate(25 86 54)" />
+        <ellipse cx="30" cy="57" rx="3.2" ry="1.8" transform="rotate(10 30 57)" />
+      </g>
+      <!-- 감귤 잎 -->
+      <path d="M64 40 C70 28 84 28 86 32 C80 38 72 41 64 40 Z" fill="#16a34a" />
+      <path d="M65 39.5 L82 32.5" stroke="#15803d" stroke-width="1.5" stroke-linecap="round" />
+      <!-- 그릇 -->
+      <path d="M10 60 H110 C110 90 90 106 60 106 C30 106 10 90 10 60 Z" fill="#f97316" />
+      <path d="M10 60 H110 C110 64 109.5 67 108.6 70 H11.4 C10.5 67 10 64 10 60 Z" fill="#ea580c" />
+      <rect x="44" y="104" width="32" height="8" rx="3" fill="#ea580c" />
+      <path d="M22 76 C26 88 36 96 48 99" fill="none" stroke="#fdba74" stroke-width="4" stroke-linecap="round" opacity=".7" />
+      <!-- 얼굴 -->
+      <g class="eyes-open" fill="#1f2937">
+        <ellipse cx="45" cy="81" rx="4.2" ry="5.2" />
+        <ellipse cx="75" cy="81" rx="4.2" ry="5.2" />
+        <circle cx="46.5" cy="79" r="1.5" fill="#fff" />
+        <circle cx="76.5" cy="79" r="1.5" fill="#fff" />
+      </g>
+      <g class="eyes-happy" fill="none" stroke="#1f2937" stroke-width="3.5" stroke-linecap="round">
+        <path d="M39 83 Q45 75 51 83" />
+        <path d="M69 83 Q75 75 81 83" />
+      </g>
+      <ellipse cx="35" cy="91" rx="5.5" ry="3.2" fill="#fecaca" opacity=".85" />
+      <ellipse cx="85" cy="91" rx="5.5" ry="3.2" fill="#fecaca" opacity=".85" />
+      <path class="mouth-smile" d="M54 90 Q60 96 66 90" fill="none" stroke="#1f2937" stroke-width="3" stroke-linecap="round" />
+      <g class="mouth-open">
+        <path d="M53 89 Q60 101 67 89 Z" fill="#7f1d1d" />
+        <path d="M56.5 94.5 Q60 98 63.5 94.5" fill="#fb7185" />
+      </g>
+    </g>
+  </svg>
+</button>
+<audio id="mascotSound" preload="auto"></audio>
 
 <!-- ===== 확인 대화상자 ===== -->
 <div id="confirmBox" class="hidden fixed inset-0 z-[70] flex items-center justify-center px-6">
@@ -1184,6 +1256,35 @@ document.addEventListener('click', e => {
 });
 
 $('#btnAdd').addEventListener('click', () => openForm());
+
+/* =========================================================
+   밥그릇 마스코트 (누르면 소리)
+   ========================================================= */
+const MASCOT_SOUND = './bap.m4a';
+const mascotSnd = $('#mascotSound');
+let mascotTimer, mascotFallback = false;
+// 파일을 미리 받아 두면 오프라인에서도, 아이폰에서도 바로 재생됩니다
+fetch(MASCOT_SOUND)
+  .then(r => { if (!r.ok) throw new Error('http'); return r.blob(); })
+  .then(b => { mascotSnd.src = URL.createObjectURL(b); mascotSnd.load(); })
+  .catch(() => { mascotFallback = true; mascotSnd.src = MASCOT_SOUND; });
+mascotSnd.addEventListener('error', () => {
+  if (mascotFallback) return;
+  mascotFallback = true; mascotSnd.src = MASCOT_SOUND; mascotSnd.load();
+});
+$('#mascot').addEventListener('click', () => {
+  const m = $('#mascot');
+  try {
+    mascotSnd.currentTime = 0;
+    const p = mascotSnd.play();
+    if (p && p.catch) p.catch(() => toast('소리를 재생하지 못했어요. 볼륨을 확인해 주세요', 'error'));
+  } catch (e) {}
+  m.classList.remove('playing'); void m.offsetWidth; m.classList.add('playing');
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
+  clearTimeout(mascotTimer);
+  const ms = Math.max(1300, ((isFinite(mascotSnd.duration) && mascotSnd.duration) || 1.8) * 1000);
+  mascotTimer = setTimeout(() => m.classList.remove('playing'), ms);
+});
 $('#list').addEventListener('keydown', e => {
   const c = e.target.closest('[role="button"][data-action="edit"]');
   if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openForm(c.dataset.id); }

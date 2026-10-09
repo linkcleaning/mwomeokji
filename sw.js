@@ -1,6 +1,6 @@
 /* 오늘 뭐먹지? - 서비스 워커 (index.html과 같은 폴더에 두세요) */
-const CACHE = 'mwomeokji-v8';
-const APP_SHELL = ['./', './index.html'];
+const CACHE = 'mwomeokji-v9';
+const APP_SHELL = ['./', './index.html', './bap.m4a'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -17,6 +17,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
+  // 오디오 부분 요청(Range)은 브라우저에 맡김 (아이폰 재생 오류 방지)
+  if (req.headers.has('range')) return;
   const url = new URL(req.url);
 
   // 페이지 이동: 네트워크 우선, 실패 시 캐시 (최신 버전 우선 반영)
