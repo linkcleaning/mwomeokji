@@ -284,6 +284,17 @@
       </div>
 
       <div id="formScroll" class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div id="geoBox" class="rounded-2xl border-2 border-sky-200 bg-sky-50 p-3">
+          <div class="flex items-center gap-2">
+            <i id="geoIcon" data-lucide="locate-fixed" class="w-5 h-5 text-sky-700"></i>
+            <p id="geoStatus" class="flex-1 min-w-0 text-[14px] font-bold text-sky-900 leading-snug break-keep">현위치 버튼을 누르면 주소와 동네가 채워져요</p>
+            <button id="btnGeo" type="button" class="shrink-0 h-10 px-3 rounded-lg bg-sky-600 text-white text-sm font-bold flex items-center gap-1 active:bg-sky-700">
+              <i data-lucide="crosshair" class="w-4 h-4"></i><span id="btnGeoLabel">현위치</span>
+            </button>
+          </div>
+          <div id="geoPlaces" class="hidden mt-2.5"></div>
+        </div>
+
         <div>
           <p class="text-sm font-bold text-slate-700 mb-1.5">종류</p>
           <div id="formType" class="grid grid-cols-2 gap-2"></div>
@@ -668,7 +679,11 @@ function normalize(o) {
     },
     createdAt: Number(o.createdAt) || Date.now(),
     updatedAt: Number(o.updatedAt) || Date.now(),
-    sample: o.sample === true
+    sample: o.sample === true,
+    ...(() => {
+      const lat = o.lat == null ? NaN : Number(o.lat), lng = o.lng == null ? NaN : Number(o.lng);
+      return (isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) ? { lat, lng } : { lat: null, lng: null };
+    })()
   };
 }
 
@@ -724,7 +739,7 @@ let formSaved = false;
 let deferredInstall = null;
 
 function blankForm(type = 'food') {
-  return { type, tags: { solo: '', parking: '', breakfast: '', worker: [], cafe: [] }, rating: 0, photos: [], added: [], removed: [] };
+  return { type, tags: { solo: '', parking: '', breakfast: '', worker: [], cafe: [] }, rating: 0, photos: [], added: [], removed: [], geo: null };
 }
 
 /* =========================================================
@@ -865,7 +880,7 @@ function cardHtml(it) {
       <a href="https://map.naver.com/v5/search/${q}" target="_blank" rel="noopener" class="${actionBtn} bg-green-50 text-green-700 active:bg-green-100">
         <i data-lucide="map" class="w-5 h-5"></i>네이버
       </a>
-      <a href="https://map.kakao.com/link/search/${q}" target="_blank" rel="noopener" class="${actionBtn} bg-yellow-50 text-yellow-800 active:bg-yellow-100">
+      <a href="${it.lat != null ? `https://map.kakao.com/link/to/${encodeURIComponent(it.name)},${it.lat},${it.lng}` : `https://map.kakao.com/link/search/${q}`}" target="_blank" rel="noopener" class="${actionBtn} bg-yellow-50 text-yellow-800 active:bg-yellow-100">
         <i data-lucide="map-pinned" class="w-5 h-5"></i>카카오
       </a>
       ${tel
@@ -983,6 +998,7 @@ function openSheet(sel) {
   try { history.pushState({ sheet: sel }, ''); } catch (e) {}
 }
 function hideAllSheets() {
+  GEO.seq++;
   if (!$('#formSheet').classList.contains('hidden') && !formSaved) {
     form.added.forEach(id => PhotoDB.del(id));
     form.added = [];
@@ -1134,7 +1150,8 @@ function openForm(id = null) {
   const it = id ? items.find(x => x.id === id) : null;
   const defType = state.type === 'cafe' ? 'cafe' : 'food';
   form = it
-    ? { type: it.type, tags: JSON.parse(JSON.stringify(it.tags)), rating: it.rating, photos: [...it.photos], added: [], removed: [] }
+    ? { type: it.type, tags: JSON.parse(JSON.stringify(it.tags)), rating: it.rating, photos: [...it.photos], added: [], removed: [],
+        geo: it.lat != null ? { lat: it.lat, lng: it.lng, acc: null } : null }
     : blankForm(defType);
   $('#formTitle').textContent = it ? '수정하기' : '새로 등록';
   $('#submitLabel').textContent = it ? '수정 완료' : '저장하기';
@@ -1152,7 +1169,188 @@ function openForm(id = null) {
   refreshFormDynamic();
   openSheet('#formSheet');
   $('#formScroll').scrollTop = 0;
+  resetGeoBox(!!it);
+  if (!it) locateHere(true);
 }
+
+/* =========================================================
+   현위치로 주소·동네 채우기 + 근처 가게 이름 찾기
+   ========================================================= */
+const GEO = { seq: 0 };
+// 법정동 → 행정동 (주소에 법정동만 나올 때 동네 버튼과 맞추기 위함)
+const LEGAL_DONG = {
+  jeju: {
+    '일도일동': '일도1동', '일도이동': '일도2동', '이도일동': '이도1동', '이도이동': '이도2동', '도남동': '이도2동',
+    '삼도일동': '삼도1동', '삼도이동': '삼도2동', '용담일동': '용담1동', '용담이동': '용담2동', '용담삼동': '용담2동',
+    '화북일동': '화북동', '화북이동': '화북동', '삼양일동': '삼양동', '삼양이동': '삼양동', '삼양삼동': '삼양동',
+    '도련일동': '삼양동', '도련이동': '삼양동', '회천동': '봉개동', '용강동': '봉개동',
+    '아라일동': '아라동', '아라이동': '아라동', '영평동': '아라동', '월평동': '아라동', '오등동': '아라동',
+    '오라일동': '오라동', '오라이동': '오라동', '오라삼동': '오라동', '해안동': '노형동',
+    '외도일동': '외도동', '외도이동': '외도동', '내도동': '외도동', '도평동': '외도동',
+    '이호일동': '이호동', '이호이동': '이호동', '도두일동': '도두동', '도두이동': '도두동'
+  },
+  seogwipo: {
+    '하효동': '효돈동', '신효동': '효돈동', '상효동': '영천동', '보목동': '송산동',
+    '법환동': '대륜동', '서호동': '대륜동', '호근동': '대륜동', '강정동': '대천동', '도순동': '대천동',
+    '대포동': '중문동', '색달동': '중문동', '상예동': '예래동', '하예동': '예래동'
+  }
+};
+
+function fetchT(url, opts = {}, ms = 9000) {
+  const ctl = 'AbortController' in window ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+  return fetch(url, { ...opts, signal: ctl ? ctl.signal : undefined }).finally(() => t && clearTimeout(t));
+}
+function distM(a, b, c, d) {
+  const R = 6371000, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+}
+
+async function reverseGeocode(lat, lng) {
+  const r = await fetchT(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=ko`);
+  if (!r.ok) throw new Error('rev');
+  const j = await r.json();
+  const a = j.address || {};
+  const parts = [...Object.values(a).map(String), ...String(j.display_name || '').split(',').map(x => x.trim())];
+  const joined = parts.join(' ');
+  const city = joined.includes('서귀포') ? 'seogwipo' : joined.includes('제주') ? 'jeju' : null;
+  let area = '', legal = '';
+  if (city) {
+    const list = areasOf(city);
+    area = parts.find(v => list.includes(v)) || '';
+    if (!area) {
+      legal = parts.find(v => LEGAL_DONG[city][v]) || '';
+      if (legal) area = LEGAL_DONG[city][legal];
+    }
+  }
+  const ri = /[읍면]$/.test(area) && a.village ? ' ' + a.village : '';
+  const dongText = legal || (area ? area + ri : '') || a.quarter || a.suburb || a.village || a.neighbourhood || '';
+  const road = a.road ? `${a.road}${a.house_number ? ' ' + a.house_number : ''}` : '';
+  let text = [dongText, road].filter(Boolean).join(' ');
+  if (!text) text = String(j.display_name || '').split(',').slice(0, 3).map(x => x.trim()).reverse().join(' ');
+  const poi = j.name && (j.category === 'amenity' || j.category === 'shop')
+    ? { name: j.name, lat: Number(j.lat), lng: Number(j.lon), kind: j.type } : null;
+  return { city, area, text, poi };
+}
+
+async function nearbyPlaces(lat, lng) {
+  const q = `[out:json][timeout:8];(nwr(around:150,${lat},${lng})["name"]["amenity"~"^(restaurant|cafe|fast_food|food_court|bar|pub|ice_cream)$"];nwr(around:150,${lat},${lng})["name"]["shop"~"^(bakery|pastry|coffee|tea)$"];);out center tags 40;`;
+  const r = await fetchT('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, 10000);
+  if (!r.ok) throw new Error('overpass');
+  const j = await r.json();
+  return (j.elements || []).map(el => {
+    const t = el.tags || {};
+    const plat = el.lat ?? (el.center && el.center.lat), plng = el.lon ?? (el.center && el.center.lon);
+    return { name: t['name:ko'] || t.name, kind: t.amenity || t.shop || '', phone: t.phone || t['contact:phone'] || '',
+      lat: plat, lng: plng, d: plat != null ? distM(lat, lng, plat, plng) : 9999 };
+  }).filter(x => x.name);
+}
+
+const isCafeKind = k => ['cafe', 'coffee', 'tea', 'bakery', 'pastry', 'ice_cream'].includes(k);
+
+function setGeo(msg, tone = 'info', icon = 'locate-fixed') {
+  const box = $('#geoBox');
+  const tones = { info: ['border-sky-200', 'bg-sky-50', 'text-sky-900'], ok: ['border-emerald-300', 'bg-emerald-50', 'text-emerald-900'], warn: ['border-amber-300', 'bg-amber-50', 'text-amber-900'] };
+  box.classList.remove('border-sky-200', 'bg-sky-50', 'border-emerald-300', 'bg-emerald-50', 'border-amber-300', 'bg-amber-50');
+  box.classList.add(tones[tone][0], tones[tone][1]);
+  const st = $('#geoStatus');
+  st.className = `flex-1 min-w-0 text-[14px] font-bold leading-snug break-keep ${tones[tone][2]}`;
+  st.textContent = msg;
+  const ic = $('#geoIcon');
+  if (ic) { ic.outerHTML = `<i id="geoIcon" data-lucide="${icon}" class="w-5 h-5 ${tones[tone][2]} ${icon === 'loader' ? 'animate-spin' : ''}"></i>`; refreshIcons(); }
+}
+
+function resetGeoBox(editing) {
+  $('#geoPlaces').classList.add('hidden'); $('#geoPlaces').innerHTML = '';
+  $('#btnGeo').disabled = false;
+  if (editing && form.geo) { setGeo('저장된 위치가 있어요. 카카오 길찾기에 쓰여요', 'ok', 'map-pin-check'); $('#btnGeoLabel').textContent = '다시 찾기'; }
+  else { setGeo('현위치 버튼을 누르면 주소와 동네가 채워져요'); $('#btnGeoLabel').textContent = '현위치'; }
+}
+
+function renderPlaces(list) {
+  const box = $('#geoPlaces');
+  if (!list) { box.classList.add('hidden'); return; }
+  if (!list.length) {
+    box.innerHTML = `<p class="text-[13px] font-semibold text-slate-600">근처 가게 이름은 찾지 못했어요. 이름은 직접 입력해 주세요.</p>`;
+    box.classList.remove('hidden'); return;
+  }
+  box.innerHTML = `<p class="text-[13px] font-extrabold text-slate-700 mb-1.5">혹시 이 가게인가요? 누르면 이름이 들어가요</p>
+    <div class="flex flex-col gap-1.5">${list.map((p, i) => `
+      <button type="button" data-place="${i}" class="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white border-2 border-slate-200 text-left flex items-center gap-2 active:bg-slate-50">
+        <i data-lucide="${isCafeKind(p.kind) ? 'coffee' : 'utensils'}" class="w-4 h-4 text-orange-600"></i>
+        <span class="flex-1 min-w-0 font-bold text-[15px] truncate">${esc(p.name)}</span>
+        <span class="shrink-0 text-xs font-bold text-slate-500 tabular-nums">${p.d < 9999 ? p.d + 'm' : ''}</span>
+      </button>`).join('')}</div>`;
+  box.classList.remove('hidden');
+  box._places = list;
+  refreshIcons();
+}
+
+$('#geoPlaces').addEventListener('click', e => {
+  const b = e.target.closest('[data-place]'); if (!b) return;
+  const p = $('#geoPlaces')._places[+b.dataset.place];
+  $('#fName').value = p.name;
+  $('#fNameErr').classList.add('hidden'); $('#fName').classList.remove('border-red-500');
+  form.type = isCafeKind(p.kind) ? 'cafe' : 'food';
+  if (p.phone && !$('#fPhone').value.trim()) $('#fPhone').value = p.phone.replace(/^\+82[\s-]?/, '0');
+  if (p.lat != null) form.geo = { lat: p.lat, lng: p.lng, acc: form.geo ? form.geo.acc : null };
+  refreshFormDynamic();
+  $('#geoPlaces').querySelectorAll('[data-place]').forEach(x => x.classList.toggle('border-orange-500', x === b));
+  toast(`${p.name} 선택`);
+});
+
+async function locateHere(auto) {
+  const seq = ++GEO.seq;
+  if (!('geolocation' in navigator)) { setGeo('이 기기에서는 위치를 쓸 수 없어요. 주소를 직접 입력해 주세요', 'warn', 'map-pin-off'); return; }
+  $('#btnGeo').disabled = true;
+  setGeo('현위치 찾는 중…', 'info', 'loader');
+  let pos;
+  try {
+    pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000, maximumAge: 20000 }));
+  } catch (err) {
+    if (seq !== GEO.seq) return;
+    $('#btnGeo').disabled = false;
+    const msg = err && err.code === 1
+      ? (inFrame ? '미리보기 화면에서는 위치를 쓸 수 없어요. 홈 화면 앱에서 써 주세요'
+                 : '위치 권한이 꺼져 있어요. 설정 → 개인정보 보호 → 위치 서비스 → Safari 웹 사이트를 "앱을 사용하는 동안"으로 바꿔 주세요')
+      : '위치를 찾지 못했어요. 잠시 뒤 다시 눌러 주세요';
+    setGeo(msg, 'warn', 'map-pin-off');
+    return;
+  }
+  if (seq !== GEO.seq) return;
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  form.geo = { lat, lng, acc: Math.round(accuracy) };
+  setGeo(`위치 확인 (오차 약 ${form.geo.acc}m) · 주소 찾는 중…`, 'info', 'loader');
+
+  const [addr, places] = await Promise.all([
+    reverseGeocode(lat, lng).catch(() => null),
+    nearbyPlaces(lat, lng).catch(() => null)
+  ]);
+  if (seq !== GEO.seq) return;
+  $('#btnGeo').disabled = false;
+  $('#btnGeoLabel').textContent = '다시 찾기';
+
+  if (addr) {
+    if (!auto || !$('#fAddress').value.trim()) $('#fAddress').value = addr.text;
+    if (addr.city) $('#fRegion').value = `${addr.city}|${addr.area}`;
+    const where = addr.city ? `${CITIES[addr.city].label}${addr.area ? ' ' + addr.area : ''}` : addr.text;
+    setGeo(`📍 ${where} · 주소를 채웠어요 (오차 약 ${form.geo.acc}m)`, 'ok', 'map-pin-check');
+  } else {
+    setGeo('위치는 저장했어요. 인터넷이 약해 주소는 못 불러왔어요', 'warn', 'map-pin');
+  }
+
+  let list = places;
+  if (addr && addr.poi) list = [{ ...addr.poi, phone: '', d: distM(lat, lng, addr.poi.lat, addr.poi.lng) }, ...(list || [])];
+  if (list) {
+    const seen = new Set();
+    list = list.filter(p => p.d <= 150 && !seen.has(p.name) && seen.add(p.name)).sort((a, b) => a.d - b.d).slice(0, 6);
+  }
+  renderPlaces(list);
+}
+
+$('#btnGeo').addEventListener('click', () => locateHere(false));
 
 $('#placeForm').addEventListener('submit', e => {
   e.preventDefault();
@@ -1177,6 +1375,8 @@ $('#placeForm').addEventListener('submit', e => {
     rating: form.rating,
     tags: form.tags,
     photos: form.photos,
+    lat: form.geo ? form.geo.lat : null,
+    lng: form.geo ? form.geo.lng : null,
     createdAt: prev ? prev.createdAt : now,
     updatedAt: now,
     sample: false
