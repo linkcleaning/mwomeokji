@@ -166,7 +166,7 @@
 
   <!-- 지역 칩 -->
   <div class="max-w-md mx-auto px-4 pb-3">
-    <div id="cityChips" class="grid grid-cols-3 gap-1.5"></div>
+    <div id="cityChips" class="grid grid-cols-4 gap-1.5"></div>
     <div id="areaPanel" class="hidden mt-2 rounded-2xl border-2 border-orange-200 bg-orange-50/60 p-3 max-h-[46vh] overflow-y-auto"></div>
   </div>
 </header>
@@ -315,8 +315,14 @@
         </div>
 
         <div>
-          <label for="fRegion" class="block text-sm font-bold text-slate-700 mb-1.5">지역 (읍·면·동)</label>
+          <label for="fRegion" class="block text-sm font-bold text-slate-700 mb-1.5">지역</label>
           <select id="fRegion" class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none font-semibold bg-white"></select>
+          <div id="otherAreaWrap" class="hidden mt-2">
+            <input id="fOtherArea" type="text" maxlength="30" list="otherAreaList" placeholder="예: 부산 수영구, 경기 수원시" autocomplete="off"
+              class="w-full h-12 px-3 rounded-xl border-2 border-slate-300 focus:border-orange-500 outline-none font-semibold" />
+            <datalist id="otherAreaList"></datalist>
+            <p class="text-xs text-slate-500 font-medium mt-1">시·도와 시·군·구를 띄어 쓰면 목록에서 시·도별로 묶여요.</p>
+          </div>
         </div>
 
         <div>
@@ -491,10 +497,19 @@ const CITIES = {
            '삼양동', '봉개동', '아라동', '오라동', '연동', '노형동', '외도동', '이호동', '도두동'] },
   seogwipo: { label: '서귀포시',
     eupmyeon: ['대정읍', '남원읍', '성산읍', '안덕면', '표선면'],
-    dong: ['송산동', '정방동', '중앙동', '천지동', '효돈동', '영천동', '동홍동', '서홍동', '대륜동', '대천동', '중문동', '예래동'] }
+    dong: ['송산동', '정방동', '중앙동', '천지동', '효돈동', '영천동', '동홍동', '서홍동', '대륜동', '대천동', '중문동', '예래동'] },
+  other: { label: '타지역', eupmyeon: [], dong: [] }
 };
 const areasOf = c => [...CITIES[c].eupmyeon, ...CITIES[c].dong];
-const locLabel = it => CITIES[it.city].label + (it.area ? ' ' + it.area : '');
+// 타지역은 "부산 수영구"처럼 자유롭게 적은 지역명을 그대로 씀
+const cleanArea = (city, a) => city === 'other' ? String(a || '').replace(/\s+/g, ' ').trim().slice(0, 30) : (areasOf(city).includes(a) ? a : '');
+const locLabel = it => it.city === 'other' ? (it.area || '타지역') : CITIES[it.city].label + (it.area ? ' ' + it.area : '');
+const SIDO_SHORT = {
+  '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구', '인천광역시': '인천', '광주광역시': '광주', '대전광역시': '대전',
+  '울산광역시': '울산', '세종특별자치시': '세종', '경기도': '경기', '강원특별자치도': '강원', '강원도': '강원',
+  '충청북도': '충북', '충청남도': '충남', '전북특별자치도': '전북', '전라북도': '전북', '전라남도': '전남',
+  '경상북도': '경북', '경상남도': '경남'
+};
 // 이전 버전 권역 → 새 구분
 const LEGACY_REGION = {
   '서귀포 동지역': ['seogwipo', ''], '제주시 동지역': ['jeju', ''], '대정/안덕': ['seogwipo', ''], '한림/애월': ['jeju', ''],
@@ -503,7 +518,7 @@ const LEGACY_REGION = {
 function parseLoc(v) {
   const [c, a = ''] = String(v || '').split('|');
   const city = CITIES[c] ? c : 'jeju';
-  return { city, area: areasOf(city).includes(a) ? a : '' };
+  return { city, area: cleanArea(city, a) };
 }
 
 const TYPES = {
@@ -661,7 +676,7 @@ function normalize(o) {
       let city = CITIES[o.city] ? o.city : null, area = String(o.area || '');
       if (!city && LEGACY_REGION[o.region]) [city, area] = LEGACY_REGION[o.region];
       if (!city) city = 'jeju';
-      if (area && !areasOf(city).includes(area)) area = '';
+      area = cleanArea(city, area);
       return { city, area };
     })(),
     address: str(o.address, 120),
@@ -759,36 +774,52 @@ function renderTypeTabs() {
 
 function renderRegionChips() {
   const pool = items.filter(typeMatches);
-  const cityCount = { jeju: 0, seogwipo: 0 }, areaCount = {};
-  pool.forEach(it => { cityCount[it.city]++; if (it.area) areaCount[it.area] = (areaCount[it.area] || 0) + 1; });
+  const cityCount = { jeju: 0, seogwipo: 0, other: 0 }, areaCount = {}, otherAreas = {};
+  pool.forEach(it => {
+    cityCount[it.city]++;
+    if (!it.area) return;
+    if (it.city === 'other') otherAreas[it.area] = (otherAreas[it.area] || 0) + 1;
+    else areaCount[it.area] = (areaCount[it.area] || 0) + 1;
+  });
   const badge = (n, on) => `<span class="text-xs font-extrabold rounded-full px-1.5 min-w-[1.25rem] ${
     on ? 'bg-white/25 text-white' : (n ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400')}">${n}</span>`;
-  const btn = on => `h-11 rounded-xl text-[15px] font-bold border-2 transition flex items-center justify-center gap-1 px-1 min-w-0 ${
+  const btn = on => `h-11 rounded-xl text-[14px] font-bold border-2 transition flex items-center justify-center gap-0.5 px-1 min-w-0 ${
     on ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-300 text-slate-800 active:bg-slate-100'}`;
 
   const allOn = state.city === 'all';
-  let html = `<button data-city="all" class="${btn(allOn)}">전체${badge(pool.length, allOn)}</button>`;
+  let html = `<button data-city="all" class="${btn(allOn)}">전체</button>`;
   for (const [k, c] of Object.entries(CITIES)) {
     const on = state.city === k;
-    const label = on && state.area ? state.area : c.label;
+    const label = on && state.area ? (k === 'other' ? state.area.split(' ').pop() : state.area) : c.label;
     html += `<button data-city="${k}" aria-expanded="${on && state.panel}" class="${btn(on)}">
-      <span class="truncate">${esc(label)}</span>${on && state.area ? '' : badge(cityCount[k], on)}
-      <i data-lucide="${on && state.panel ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4"></i></button>`;
+      <span class="truncate">${esc(label)}</span>
+      <i data-lucide="${on && state.panel ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5 hidden min-[400px]:inline"></i></button>`;
   }
   $('#cityChips').innerHTML = html;
 
   const panel = $('#areaPanel');
   if (state.city === 'all' || !state.panel) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
   const c = CITIES[state.city];
-  const chip = (name, n, on) => `<button data-area="${esc(name)}" class="h-9 px-2.5 rounded-full text-[14px] font-bold border transition flex items-center gap-1 ${
+  const chip0 = (name, n, on) => `<button data-area="${esc(name)}" class="h-9 px-2.5 rounded-full text-[14px] font-bold border transition flex items-center gap-1 ${
     on ? 'bg-orange-500 border-orange-500 text-white' : n ? 'bg-white border-orange-300 text-slate-900' : 'bg-white/70 border-slate-200 text-slate-400'
   }">${esc(name)}${n ? `<span class="text-[11px] font-extrabold ${on ? 'text-white' : 'text-orange-600'}">${n}</span>` : ''}</button>`;
-  const group = (title, list) => `<p class="text-[12px] font-extrabold text-slate-500 mt-3 mb-1.5">${title}</p>
-    <div class="flex flex-wrap gap-1.5">${list.map(a => chip(a, areaCount[a] || 0, state.area === a)).join('')}</div>`;
-  panel.innerHTML = `
-    <div class="flex flex-wrap gap-1.5">${chip(c.label + ' 전체', cityCount[state.city], !state.area).replace('data-area="' + esc(c.label + ' 전체') + '"', 'data-area=""')}</div>
-    ${group('읍 · 면', c.eupmyeon)}
-    ${group('동', c.dong)}`;
+  const chip = (name, n, on, value = name) => chip0(name, n, on).replace(`data-area="${esc(name)}"`, `data-area="${esc(value)}"`);
+  const group = (title, list, counts) => `<p class="text-[12px] font-extrabold text-slate-500 mt-3 mb-1.5">${title}</p>
+    <div class="flex flex-wrap gap-1.5">${list.map(a => chip(a, counts[a] || 0, state.area === a)).join('')}</div>`;
+  const head = `<div class="flex flex-wrap gap-1.5">${chip(c.label + ' 전체', cityCount[state.city], !state.area, '')}</div>`;
+  if (state.city === 'other') {
+    // 저장한 타지역을 시·도별로 묶어서 표시
+    const bySido = {};
+    Object.keys(otherAreas).sort((a, b) => a.localeCompare(b, 'ko')).forEach(a => { const k = a.split(' ')[0]; (bySido[k] = bySido[k] || []).push(a); });
+    const keys = Object.keys(bySido);
+    panel.innerHTML = head + (keys.length
+      ? keys.map(k => group(k, bySido[k], otherAreas)).join('')
+      : `<p class="text-[13px] font-semibold text-slate-600 mt-3 leading-relaxed">아직 제주 밖에서 저장한 곳이 없어요. 타지역에서 등록하면 현위치로 "부산 수영구"처럼 지역이 자동으로 들어가고, 여기에 모여요.</p>`);
+  } else {
+    panel.innerHTML = `${head}
+      ${group('읍 · 면', c.eupmyeon, areaCount)}
+      ${group('동', c.dong, areaCount)}`;
+  }
   panel.classList.remove('hidden');
 }
 
@@ -834,7 +865,7 @@ function cardHtml(it) {
   const shown = menus.slice(0, 3);
   const more = menus.length - shown.length;
   const tags = [it.tags.solo, it.tags.parking, it.tags.breakfast, ...it.tags.worker, ...it.tags.cafe].filter(Boolean).map(tagChip).join('');
-  const q = encodeURIComponent(`${it.name} 제주`);
+  const q = encodeURIComponent(`${it.name} ${it.city === 'other' ? (it.area || '') : '제주'}`.trim());
   const tel = it.phone.replace(/[^0-9+]/g, '');
   const actionBtn = 'flex flex-col items-center justify-center gap-0.5 h-14 rounded-xl text-[12px] font-bold transition';
 
@@ -1016,10 +1047,33 @@ document.querySelectorAll('[data-close-sheet]').forEach(b => b.addEventListener(
 /* =========================================================
    등록/수정 폼
    ========================================================= */
-$('#fRegion').innerHTML = Object.entries(CITIES).map(([k, c]) => `
+$('#fRegion').innerHTML = Object.entries(CITIES).filter(([k]) => k !== 'other').map(([k, c]) => `
   <option value="${k}|">${c.label} (읍·면·동 모름)</option>
   <optgroup label="${c.label} · 읍·면">${c.eupmyeon.map(a => `<option value="${k}|${a}">${c.label} ${a}</option>`).join('')}</optgroup>
-  <optgroup label="${c.label} · 동">${c.dong.map(a => `<option value="${k}|${a}">${c.label} ${a}</option>`).join('')}</optgroup>`).join('');
+  <optgroup label="${c.label} · 동">${c.dong.map(a => `<option value="${k}|${a}">${c.label} ${a}</option>`).join('')}</optgroup>`).join('')
+  + `<optgroup label="제주 밖"><option value="other|">타지역 (직접 입력)</option></optgroup>`;
+
+function setRegionField(city, area) {
+  const isOther = city === 'other';
+  $('#fRegion').value = isOther ? 'other|' : `${city}|${area || ''}`;
+  if (!$('#fRegion').value) $('#fRegion').value = `${isOther ? 'jeju' : city}|`;
+  $('#fOtherArea').value = isOther ? (area || '') : '';
+  $('#otherAreaWrap').classList.toggle('hidden', !isOther);
+  if (isOther) {
+    const used = [...new Set(items.filter(x => x.city === 'other' && x.area).map(x => x.area))];
+    $('#otherAreaList').innerHTML = used.map(a => `<option value="${esc(a)}"></option>`).join('');
+  }
+}
+function readRegionField() {
+  const v = $('#fRegion').value;
+  if (v.startsWith('other|')) return { city: 'other', area: cleanArea('other', $('#fOtherArea').value) };
+  return parseLoc(v);
+}
+$('#fRegion').addEventListener('change', () => {
+  const v = $('#fRegion').value;
+  if (v.startsWith('other|')) { setRegionField('other', $('#fOtherArea').value); setTimeout(() => $('#fOtherArea').focus(), 50); }
+  else $('#otherAreaWrap').classList.add('hidden');
+});
 
 function renderFormType() {
   $('#formType').innerHTML = Object.entries(TYPES).map(([k, T]) => {
@@ -1157,9 +1211,9 @@ function openForm(id = null) {
   $('#submitLabel').textContent = it ? '수정 완료' : '저장하기';
   $('#fName').value = it ? it.name : '';
   const lastLoc = meta.lastLoc ? parseLoc(meta.lastLoc) : { city: 'jeju', area: '' };
-  $('#fRegion').value = it ? `${it.city}|${it.area}`
-    : state.city !== 'all' ? `${state.city}|${state.area}`
-    : `${lastLoc.city}|${lastLoc.area}`;
+  if (it) setRegionField(it.city, it.area);
+  else if (state.city !== 'all') setRegionField(state.city, state.area);
+  else setRegionField(lastLoc.city, lastLoc.area);
   $('#fAddress').value = it ? it.address : '';
   $('#fMenus').value = it ? it.menus : '';
   $('#fPhone').value = it ? it.phone : '';
@@ -1214,9 +1268,21 @@ async function reverseGeocode(lat, lng) {
   const a = j.address || {};
   const parts = [...Object.values(a).map(String), ...String(j.display_name || '').split(',').map(x => x.trim())];
   const joined = parts.join(' ');
-  const city = joined.includes('서귀포') ? 'seogwipo' : joined.includes('제주') ? 'jeju' : null;
+  const inJeju = joined.includes('제주특별자치도') || a.city === '제주시' || a.city === '서귀포시';
+  let city = inJeju ? (joined.includes('서귀포') ? 'seogwipo' : 'jeju') : null;
   let area = '', legal = '';
-  if (city) {
+  if (!inJeju && (a.country_code ? a.country_code === 'kr' : /대한민국|한국/.test(joined))) {
+    // 제주 밖: "부산 수영구", "경기 수원시", "강원 양양군"
+    const sidoFull = a.province || a.state || (SIDO_SHORT[a.city] ? a.city : '') || parts.find(v => SIDO_SHORT[v]) || '';
+    const sido = SIDO_SHORT[sidoFull] || sidoFull.replace(/(특별자치도|특별자치시|특별시|광역시|도)$/, '');
+    const metro = /(특별시|광역시|특별자치시)$/.test(sidoFull);
+    const gu = metro ? (a.borough || a.city_district || a.county || '') : (a.city && a.city !== sidoFull ? a.city : (a.county || a.borough || ''));
+    city = 'other';
+    area = cleanArea('other', [sido, gu].filter(Boolean).join(' '));
+  } else if (!inJeju) {
+    city = null;
+  }
+  if (city && city !== 'other') {
     const list = areasOf(city);
     area = parts.find(v => list.includes(v)) || '';
     if (!area) {
@@ -1225,7 +1291,9 @@ async function reverseGeocode(lat, lng) {
     }
   }
   const ri = /[읍면]$/.test(area) && a.village ? ' ' + a.village : '';
-  const dongText = legal || (area ? area + ri : '') || a.quarter || a.suburb || a.village || a.neighbourhood || '';
+  const dongText = city === 'other'
+    ? ([a.town, a.quarter || a.suburb || a.village || a.neighbourhood].filter(Boolean).join(' '))
+    : (legal || (area ? area + ri : '') || a.quarter || a.suburb || a.village || a.neighbourhood || '');
   const road = a.road ? `${a.road}${a.house_number ? ' ' + a.house_number : ''}` : '';
   let text = [dongText, road].filter(Boolean).join(' ');
   if (!text) text = String(j.display_name || '').split(',').slice(0, 3).map(x => x.trim()).reverse().join(' ');
@@ -1334,8 +1402,8 @@ async function locateHere(auto) {
 
   if (addr) {
     if (!auto || !$('#fAddress').value.trim()) $('#fAddress').value = addr.text;
-    if (addr.city) $('#fRegion').value = `${addr.city}|${addr.area}`;
-    const where = addr.city ? `${CITIES[addr.city].label}${addr.area ? ' ' + addr.area : ''}` : addr.text;
+    if (addr.city) setRegionField(addr.city, addr.area);
+    const where = addr.city ? locLabel(addr) : addr.text;
     setGeo(`📍 ${where} · 주소를 채웠어요 (오차 약 ${form.geo.acc}m)`, 'ok', 'map-pin-check');
   } else {
     setGeo('위치는 저장했어요. 인터넷이 약해 주소는 못 불러왔어요', 'warn', 'map-pin');
@@ -1367,7 +1435,7 @@ $('#placeForm').addEventListener('submit', e => {
     id: editingId || uid(),
     type: form.type,
     name,
-    ...parseLoc($('#fRegion').value),
+    ...readRegionField(),
     address: $('#fAddress').value,
     menus: $('#fMenus').value.split('\n').map(s => s.trim()).filter(Boolean).join('\n'),
     phone: $('#fPhone').value,
